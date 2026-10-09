@@ -1,6 +1,7 @@
 import React from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import LandingPage from './components/screens/LandingPage';
 import InputScreen from './components/screens/InputScreen';
 import AnalysisScreen from './components/screens/AnalysisScreen';
 import ResultScreen from './components/screens/ResultScreen';
@@ -11,6 +12,7 @@ function MainFlow() {
 
   return (
     <main style={{ flex: 1, paddingBottom: '2rem' }}>
+      {screen === 'landing' && <LandingPage />}
       {screen === 'input' && <InputScreen />}
       {screen === 'analysis' && <AnalysisScreen />}
       {screen === 'result' && <ResultScreen />}

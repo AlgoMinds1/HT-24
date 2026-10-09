@@ -4,7 +4,8 @@ import { verifyForward, FIXTURE_MAP, USE_MOCK } from '../services/verificationSe
 const VerificationContext = createContext(null);
 
 export function VerificationProvider({ children }) {
-  const [screen, setScreen] = useState('input'); // 'input' | 'analysis' | 'result'
+  // Screens: 'landing' | 'input' | 'analysis' | 'result'
+  const [screen, setScreen] = useState('landing'); 
   const [activeTab, setActiveTab] = useState('text'); // 'text' | 'image' | 'audio' | 'pdf' | 'url'
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [resultData, setResultData] = useState(null);
@@ -17,7 +18,15 @@ export function VerificationProvider({ children }) {
   const [urlInput, setUrlInput] = useState('');
   const [activePresetKey, setActivePresetKey] = useState(null);
 
-  const selectPreset = (fixtureKey) => {
+  const goToDashboard = () => {
+    setScreen('input');
+  };
+
+  const goToLanding = () => {
+    setScreen('landing');
+  };
+
+  const selectPreset = (fixtureKey, andVerifyDirectly = false) => {
     const fixture = FIXTURE_MAP[fixtureKey];
     if (!fixture) return;
     setActivePresetKey(fixtureKey);
@@ -25,6 +34,13 @@ export function VerificationProvider({ children }) {
     setTextInput(fixture.data.input.raw_text);
     setSelectedFile(null);
     setUrlInput('');
+    setScreen('input');
+
+    if (andVerifyDirectly) {
+      setTimeout(() => {
+        handleStartVerificationWithPreset(fixtureKey);
+      }, 50);
+    }
   };
 
   const resetAll = () => {
@@ -37,6 +53,32 @@ export function VerificationProvider({ children }) {
     setSelectedFile(null);
     setUrlInput('');
     setActivePresetKey(null);
+  };
+
+  const handleStartVerificationWithPreset = async (presetKey) => {
+    setError(null);
+    setIsAnalyzing(true);
+    setScreen('analysis');
+    setCurrentStepIndex(0);
+
+    const payload = {
+      type: 'text',
+      presetKey: presetKey
+    };
+
+    try {
+      const result = await verifyForward(payload, (stepIdx) => {
+        setCurrentStepIndex(stepIdx);
+      });
+      setResultData(result);
+      setScreen('result');
+    } catch (err) {
+      console.error('Verification error:', err);
+      setError(err.message || 'An unexpected error occurred during verification.');
+      setScreen('input');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleStartVerification = async () => {
@@ -79,6 +121,8 @@ export function VerificationProvider({ children }) {
       value={{
         screen,
         setScreen,
+        goToDashboard,
+        goToLanding,
         activeTab,
         setActiveTab,
         currentStepIndex,

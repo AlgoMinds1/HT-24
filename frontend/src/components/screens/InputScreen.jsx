@@ -8,8 +8,14 @@ import {
   ArrowRight, 
   UploadCloud, 
   X, 
-  Sparkles,
-  AlertCircle
+  Sparkles, 
+  AlertCircle, 
+  Play, 
+  Pause, 
+  Eye, 
+  CheckCircle2, 
+  Globe,
+  HelpCircle
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { FIXTURE_MAP } from '../../services/verificationService';
@@ -31,6 +37,9 @@ export default function InputScreen() {
 
   const [dragActive, setDragActive] = useState(false);
   const [urlTouched, setUrlTouched] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [showOcrOverlay, setShowOcrOverlay] = useState(false);
 
   // URL Validation Helper
   const isValidUrl = (str) => {
@@ -62,14 +71,29 @@ export default function InputScreen() {
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFile(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      setSelectedFile(file);
+      if (activeTab === 'image' && file.type.startsWith('image/')) {
+        setImagePreviewUrl(URL.createObjectURL(file));
+      }
     }
   };
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      if (activeTab === 'image' && file.type.startsWith('image/')) {
+        setImagePreviewUrl(URL.createObjectURL(file));
+      }
     }
+  };
+
+  const clearFile = () => {
+    setSelectedFile(null);
+    setImagePreviewUrl(null);
+    setIsPlayingAudio(false);
+    setShowOcrOverlay(false);
   };
 
   const formatFileSize = (bytes) => {
@@ -80,50 +104,68 @@ export default function InputScreen() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  const loadSampleFile = (type) => {
+    if (type === 'image') {
+      const dummyFile = new File(["sample image buffer"], "whatsapp_screenshot_scheme.png", { type: "image/png" });
+      setSelectedFile(dummyFile);
+      setImagePreviewUrl("https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80");
+    } else if (type === 'audio') {
+      const dummyFile = new File(["sample audio buffer"], "viral_voice_note_cure.mp3", { type: "audio/mp3" });
+      setSelectedFile(dummyFile);
+    } else if (type === 'pdf') {
+      const dummyFile = new File(["sample pdf buffer"], "gazette_notification_order_2021.pdf", { type: "application/pdf" });
+      setSelectedFile(dummyFile);
+    }
+  };
+
   return (
     <div className="input-screen-wrapper">
-      <div className="input-hero">
-        <h1>Verify Suspicious Forwards & Claims</h1>
-        <p>
-          Analyze viral WhatsApp forwards, screenshots, audio notes, advisories, and KYC messages
-          against authoritative registries and multi-agent evidence.
-        </p>
+      {/* Dashboard Top Header */}
+      <div className="dashboard-header-block">
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            Claim Verification Studio
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.98rem', marginTop: '0.25rem' }}>
+            Submit suspicious forwards across 5 supported modalities to run automated multi-agent fact checking.
+          </p>
+        </div>
       </div>
 
-      <div className="glass-card">
+      <div className="glass-card" style={{ marginTop: '1.25rem' }}>
         {/* Five Input Tabs */}
         <div className="tabs-navigation">
           <button
             className={`tab-btn ${activeTab === 'text' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('text'); setSelectedFile(null); }}
+            onClick={() => { setActiveTab('text'); clearFile(); }}
           >
             <FileText size={18} />
             <span>Text Forward</span>
           </button>
           <button
             className={`tab-btn ${activeTab === 'image' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('image'); setSelectedFile(null); }}
+            onClick={() => { setActiveTab('image'); clearFile(); }}
           >
             <ImageIcon size={18} />
             <span>Image / Screenshot</span>
           </button>
           <button
             className={`tab-btn ${activeTab === 'audio' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('audio'); setSelectedFile(null); }}
+            onClick={() => { setActiveTab('audio'); clearFile(); }}
           >
             <Mic size={18} />
             <span>Voice / Audio</span>
           </button>
           <button
             className={`tab-btn ${activeTab === 'pdf' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('pdf'); setSelectedFile(null); }}
+            onClick={() => { setActiveTab('pdf'); clearFile(); }}
           >
             <FileCheck size={18} />
             <span>PDF Circular</span>
           </button>
           <button
             className={`tab-btn ${activeTab === 'url' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('url'); setSelectedFile(null); }}
+            onClick={() => { setActiveTab('url'); clearFile(); }}
           >
             <LinkIcon size={18} />
             <span>Link / URL</span>
@@ -142,8 +184,8 @@ export default function InputScreen() {
                 onChange={(e) => setTextInput(e.target.value)}
               />
               <div className="textarea-footer">
-                <span>Min 10 characters required</span>
-                <span>{textInput.trim().length} characters | {textInput.trim() ? textInput.trim().split(/\s+/).length : 0} words</span>
+                <span>{textInput.trim().length < 10 ? '⚠️ Min 10 characters required to verify' : '✅ Ready for analysis'}</span>
+                <span>{textInput.trim().length} characters • {textInput.trim() ? textInput.trim().split(/\s+/).length : 0} words</span>
               </div>
             </div>
           )}
@@ -152,46 +194,82 @@ export default function InputScreen() {
           {activeTab === 'image' && (
             <div>
               {!selectedFile ? (
-                <div
-                  className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
-                  onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFileDrop}
-                  onClick={() => document.getElementById('image-upload-input').click()}
-                >
-                  <UploadCloud size={40} color="var(--accent-cyan)" />
-                  <div>
-                    <strong style={{ fontSize: '1rem' }}>Upload Screenshot or Claim Image</strong>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      Drag and drop image here, or click to browse (.PNG, .JPG, .WEBP)
-                    </p>
+                <div>
+                  <div
+                    className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
+                    onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleFileDrop}
+                    onClick={() => document.getElementById('image-upload-input').click()}
+                  >
+                    <UploadCloud size={44} color="var(--accent-terracotta)" />
+                    <div>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                        Upload Screenshot or Forward Image
+                      </strong>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                        Drag & drop image here, or click to browse (.PNG, .JPG, .WEBP)
+                      </p>
+                    </div>
+                    <input
+                      id="image-upload-input"
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      style={{ display: 'none' }}
+                      onChange={handleFileChange}
+                    />
                   </div>
-                  <input
-                    id="image-upload-input"
-                    type="file"
-                    accept="image/png, image/jpeg, image/webp"
-                    style={{ display: 'none' }}
-                    onChange={handleFileChange}
-                  />
+                  <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => loadSampleFile('image')}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-terracotta)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Or load interactive sample screenshot
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="file-preview-card">
-                  <div className="file-info-group">
-                    <ImageIcon size={28} color="var(--accent-cyan)" />
-                    <div>
-                      <strong style={{ display: 'block' }}>{selectedFile.name}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {formatFileSize(selectedFile.size)} • Image Attachment
-                      </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div className="file-preview-card">
+                    <div className="file-info-group">
+                      <ImageIcon size={30} color="var(--accent-terracotta)" />
+                      <div>
+                        <strong style={{ display: 'block', color: 'var(--text-primary)' }}>{selectedFile.name}</strong>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {formatFileSize(selectedFile.size || 240000)} • Image Attachment
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        className="feedback-btn"
+                        onClick={() => setShowOcrOverlay(!showOcrOverlay)}
+                      >
+                        <Eye size={14} />
+                        <span>{showOcrOverlay ? 'Hide OCR' : 'Preview OCR'}</span>
+                      </button>
+                      <button
+                        onClick={clearFile}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.3rem' }}
+                      >
+                        <X size={20} />
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedFile(null)}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                  >
-                    <X size={20} />
-                  </button>
+
+                  {showOcrOverlay && (
+                    <div style={{ padding: '1rem', background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', fontSize: '0.88rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--accent-terracotta)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Simulated OCR Claim Extraction:
+                      </span>
+                      <p style={{ marginTop: '0.35rem', color: 'var(--text-primary)', fontStyle: 'italic' }}>
+                        "URGENT: YONO Bank account has been BLOCKED due to expired KYC. Update immediately at sbi-kyc-quickupdate.net..."
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -201,42 +279,61 @@ export default function InputScreen() {
           {activeTab === 'audio' && (
             <div>
               {!selectedFile ? (
-                <div
-                  className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
-                  onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFileDrop}
-                  onClick={() => document.getElementById('audio-upload-input').click()}
-                >
-                  <Mic size={40} color="var(--accent-cyan)" />
-                  <div>
-                    <strong style={{ fontSize: '1rem' }}>Upload Voice Note / Audio Recording</strong>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      Supports WhatsApp voice notes and audio forwards (.MP3, .WAV, .M4A, .OGG)
-                    </p>
+                <div>
+                  <div
+                    className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
+                    onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleFileDrop}
+                    onClick={() => document.getElementById('audio-upload-input').click()}
+                  >
+                    <Mic size={44} color="var(--accent-terracotta)" />
+                    <div>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                        Upload Voice Note or Audio Forward
+                      </strong>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                        Supports WhatsApp voice notes and audio clips (.MP3, .WAV, .M4A, .OGG)
+                      </p>
+                    </div>
+                    <input
+                      id="audio-upload-input"
+                      type="file"
+                      accept="audio/*"
+                      style={{ display: 'none' }}
+                      onChange={handleFileChange}
+                    />
                   </div>
-                  <input
-                    id="audio-upload-input"
-                    type="file"
-                    accept="audio/*"
-                    style={{ display: 'none' }}
-                    onChange={handleFileChange}
-                  />
+                  <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => loadSampleFile('audio')}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-terracotta)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Or load interactive sample viral audio forward
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="file-preview-card">
                   <div className="file-info-group">
-                    <Mic size={28} color="var(--accent-cyan)" />
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayingAudio(!isPlayingAudio)}
+                      style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-terracotta)', border: 'none', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                    >
+                      {isPlayingAudio ? <Pause size={18} /> : <Play size={18} style={{ marginLeft: '2px' }} />}
+                    </button>
                     <div>
-                      <strong style={{ display: 'block' }}>{selectedFile.name}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {formatFileSize(selectedFile.size)} • Audio Recording
+                      <strong style={{ display: 'block', color: 'var(--text-primary)' }}>{selectedFile.name}</strong>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {formatFileSize(selectedFile.size || 520000)} • 0:48 duration • {isPlayingAudio ? 'Playing simulated audio...' : 'Audio loaded'}
                       </span>
                     </div>
                   </div>
                   <button
-                    onClick={() => setSelectedFile(null)}
+                    onClick={clearFile}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                   >
                     <X size={20} />
@@ -250,42 +347,55 @@ export default function InputScreen() {
           {activeTab === 'pdf' && (
             <div>
               {!selectedFile ? (
-                <div
-                  className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
-                  onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-                  onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFileDrop}
-                  onClick={() => document.getElementById('pdf-upload-input').click()}
-                >
-                  <FileCheck size={40} color="var(--accent-cyan)" />
-                  <div>
-                    <strong style={{ fontSize: '1rem' }}>Upload Government Circular or Document PDF</strong>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      Drag and drop PDF circular, Gazette order, or gazetted advisory (.PDF)
-                    </p>
+                <div>
+                  <div
+                    className={`upload-dropzone ${dragActive ? 'drag-active' : ''}`}
+                    onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleFileDrop}
+                    onClick={() => document.getElementById('pdf-upload-input').click()}
+                  >
+                    <FileCheck size={44} color="var(--accent-terracotta)" />
+                    <div>
+                      <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                        Upload Government Circular or Document PDF
+                      </strong>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+                        Drag and drop official order, Gazette notification, or PDF advisory (.PDF)
+                      </p>
+                    </div>
+                    <input
+                      id="pdf-upload-input"
+                      type="file"
+                      accept="application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={handleFileChange}
+                    />
                   </div>
-                  <input
-                    id="pdf-upload-input"
-                    type="file"
-                    accept="application/pdf"
-                    style={{ display: 'none' }}
-                    onChange={handleFileChange}
-                  />
+                  <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => loadSampleFile('pdf')}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-terracotta)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Or load interactive sample gazette circular
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="file-preview-card">
                   <div className="file-info-group">
-                    <FileCheck size={28} color="var(--accent-cyan)" />
+                    <FileCheck size={30} color="var(--accent-terracotta)" />
                     <div>
-                      <strong style={{ display: 'block' }}>{selectedFile.name}</strong>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {formatFileSize(selectedFile.size)} • PDF Document
+                      <strong style={{ display: 'block', color: 'var(--text-primary)' }}>{selectedFile.name}</strong>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {formatFileSize(selectedFile.size || 820000)} • 2 pages • PDF Circular
                       </span>
                     </div>
                   </div>
                   <button
-                    onClick={() => setSelectedFile(null)}
+                    onClick={clearFile}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                   >
                     <X size={20} />
@@ -303,7 +413,7 @@ export default function InputScreen() {
                 <input
                   type="url"
                   className={`input-custom ${urlTouched && urlInput && !isValidUrl(urlInput) ? 'invalid' : ''}`}
-                  placeholder="https://example.com/viral-article-or-forward"
+                  placeholder="https://news-portal.com/viral-scheme-announcement"
                   value={urlInput}
                   onChange={(e) => {
                     setUrlInput(e.target.value);
@@ -318,6 +428,17 @@ export default function InputScreen() {
                   <span>Please enter a valid URL starting with http:// or https://</span>
                 </div>
               )}
+              {isValidUrl(urlInput) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', background: '#FFFFFF', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', fontSize: '0.85rem' }}>
+                  <Globe size={16} color="var(--accent-terracotta)" />
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    Target Domain: <strong>{new URL(urlInput).hostname}</strong>
+                  </span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--verdict-supported)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <CheckCircle2 size={14} /> URL Valid
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -329,7 +450,7 @@ export default function InputScreen() {
             disabled={!isInputValid()}
             onClick={startVerification}
           >
-            <span>Verify Forward</span>
+            <span>Run Multi-Agent Verification</span>
             <ArrowRight size={18} />
           </button>
         </div>
@@ -338,8 +459,8 @@ export default function InputScreen() {
       {/* Quick Test Fixture Presets */}
       <div className="presets-section">
         <div className="presets-title">
-          <Sparkles size={16} color="var(--accent-cyan)" />
-          <span>Quick Test Scenarios (Sample Fixture Data)</span>
+          <Sparkles size={16} color="var(--accent-terracotta)" />
+          <span>Quick Test Scenarios (Sample Fixture Payloads)</span>
         </div>
         <div className="presets-grid">
           {Object.entries(FIXTURE_MAP).map(([key, item]) => (

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "TruthLens - Automated fact-checking and forward verification system",
   "scripts": {
+    "dev:frontend": "npm run dev --prefix frontend",
     "validate:contracts": "node contracts/validate_fixtures.js",
     "test": "npm run validate:contracts"
   },

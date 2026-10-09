@@ -4,10 +4,10 @@ export default function Footer() {
   return (
     <footer className="app-footer">
       <div>
-        <span>TruthLens — Automated Fact-Checking Architecture (PS3: "Is This Forward True?")</span>
+        <span>TruthLens — Automated Fact-Checking System</span>
       </div>
       <div>
-        <span>Contract Compliant • Draft-07 Schema • Mock Engine Active</span>
+        <span>Transparent Multi-Agent Verification</span>
       </div>
     </footer>
   );
