@@ -1,14 +1,16 @@
 /**
  * TruthLens Verification Service
  * Handles claim processing, pipeline orchestration, and contract data delivery.
+ * Supports both Mock Fixtures (USE_MOCK=true) and Live Backend API (USE_MOCK=false).
  */
 
 import outdatedGovSchemeFixture from '../fixtures/outdated_gov_scheme.json';
 import falseHealthClaimFixture from '../fixtures/false_health_claim.json';
 import suspiciousKycMessageFixture from '../fixtures/suspicious_kyc_message.json';
 
-// In Phase 1, USE_MOCK is enabled by default
+// In Phase 1 and 2, USE_MOCK is true by default
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 export const FIXTURE_MAP = {
   outdated_gov: {
@@ -36,9 +38,9 @@ export const FIXTURE_MAP = {
 
 export const ANALYSIS_STEPS = [
   { id: 1, title: 'Extracting claim', description: 'Isolating atomic factual statement from unstructured forward.' },
-  { id: 2, title: 'Searching sources', description: 'Querying authoritative fact repositories, official gazettes, and domains.' },
-  { id: 3, title: 'Cross-checking evidence', description: 'Assessing stance, credibility weights, and adversarial nuances.' },
-  { id: 4, title: 'Preparing verdict', description: 'Synthesizing confidence score, plain explanation, and risk advisories.' }
+  { id: 2, title: 'Synthesizing knowledge', description: 'Querying Gemini reasoning engine and verifying factual plausibility.' },
+  { id: 3, title: 'Adversarial stress-test', description: 'Evaluating counter-hypotheses, edge cases, and exploitation risk.' },
+  { id: 4, title: 'Finalizing verdict', description: 'Synthesizing confidence score, plain explanation, and safety actions.' }
 ];
 
 /**
@@ -49,24 +51,22 @@ export const ANALYSIS_STEPS = [
  * @returns {Promise<Object>} Verdict payload matching verdict.schema.json
  */
 export async function verifyForward(inputPayload, onStepProgress) {
+  // ============================================================================
+  // MOCK MODE (Fixture-driven)
+  // ============================================================================
   if (USE_MOCK) {
-    // Step 1: Extracting claim
     if (onStepProgress) onStepProgress(0);
     await new Promise((res) => setTimeout(res, 900));
 
-    // Step 2: Searching sources
     if (onStepProgress) onStepProgress(1);
     await new Promise((res) => setTimeout(res, 1100));
 
-    // Step 3: Cross-checking evidence
     if (onStepProgress) onStepProgress(2);
     await new Promise((res) => setTimeout(res, 1200));
 
-    // Step 4: Preparing verdict
     if (onStepProgress) onStepProgress(3);
     await new Promise((res) => setTimeout(res, 800));
 
-    // Determine which fixture payload to return based on explicit preset or text heuristics
     let selectedFixture = FIXTURE_MAP.outdated_gov.data;
 
     if (inputPayload.presetKey && FIXTURE_MAP[inputPayload.presetKey]) {
@@ -86,8 +86,9 @@ export async function verifyForward(inputPayload, onStepProgress) {
       selectedFixture = FIXTURE_MAP.suspicious_kyc.data;
     }
 
-    // Clone and optionally attach the user's actual input if text
     const resultPayload = JSON.parse(JSON.stringify(selectedFixture));
+    resultPayload.mode = 'mock';
+
     if (inputPayload.type === 'text' && inputPayload.content && !inputPayload.presetKey) {
       resultPayload.input.raw_text = inputPayload.content;
       resultPayload.input.media_type = 'text';
@@ -99,6 +100,69 @@ export async function verifyForward(inputPayload, onStepProgress) {
     return resultPayload;
   }
 
-  // Future Phase: Real Backend API call (e.g., fetch('/api/verify', { method: 'POST', body: ... }))
-  throw new Error('Live verification backend is not connected yet. Set USE_MOCK=true.');
+  // ============================================================================
+  // LIVE MODE (Backend API POST /api/verify)
+  // ============================================================================
+  if (inputPayload.type !== 'text') {
+    throw new Error(
+      `Live verification currently supports text claims only. Multimodal verification (${inputPayload.type}) is planned for an upcoming phase. Please submit a text claim or enable mock mode.`
+    );
+  }
+
+  const textToVerify = typeof inputPayload.content === 'string' ? inputPayload.content.trim() : '';
+
+  if (!textToVerify || textToVerify.length < 10) {
+    throw new Error('Please provide at least 10 characters of text to verify.');
+  }
+
+  if (onStepProgress) onStepProgress(0); // Extracting claim
+
+  try {
+    const progressTimer1 = setTimeout(() => {
+      if (onStepProgress) onStepProgress(1); // Synthesizing knowledge
+    }, 1200);
+
+    const progressTimer2 = setTimeout(() => {
+      if (onStepProgress) onStepProgress(2); // Adversarial stress-test
+    }, 2800);
+
+    const response = await fetch(`${API_BASE_URL}/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputType: 'text',
+        text: textToVerify
+      })
+    });
+
+    clearTimeout(progressTimer1);
+    clearTimeout(progressTimer2);
+
+    if (onStepProgress) onStepProgress(3); // Finalizing verdict
+
+    if (!response.ok) {
+      let errorMessage = `Verification server returned error status ${response.status}`;
+      try {
+        const errorJson = await response.json();
+        if (errorJson.error?.message) {
+          errorMessage = errorJson.error.message;
+        }
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    const liveResult = await response.json();
+    liveResult.mode = 'live';
+    return liveResult;
+
+  } catch (err) {
+    if (err.name === 'TypeError' && err.message?.includes('fetch')) {
+      throw new Error(
+        `Unable to connect to the TruthLens backend at ${API_BASE_URL}. Ensure the backend server is running (PORT 8000).`
+      );
+    }
+    throw err;
+  }
 }

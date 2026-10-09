@@ -4,7 +4,11 @@
   "description": "TruthLens - Automated fact-checking and forward verification system",
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "node --watch backend/src/server.js",
+    "start:backend": "node backend/src/server.js",
     "validate:contracts": "node contracts/validate_fixtures.js",
+    "test:backend": "node backend/scripts/test-verify.js",
+    "test:frontend": "npm test --prefix frontend",
     "test": "npm run validate:contracts"
   },
   "devDependencies": {

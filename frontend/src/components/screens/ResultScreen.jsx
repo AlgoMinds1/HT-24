@@ -8,7 +8,9 @@ import {
   ThumbsDown, 
   Info,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { FIXTURE_MAP } from '../../services/verificationService';
@@ -124,6 +126,21 @@ export default function ResultScreen() {
                 <span>{f.label}</span>
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Live AI Analysis Mode Disclosure Banner */}
+      {contract.mode === 'live' && (
+        <div className="live-disclosure-banner" role="status">
+          <Sparkles size={18} className="live-sparkle-icon" aria-hidden="true" />
+          <div>
+            <strong>Live AI Text Analysis (Gemini Reasoning Active)</strong>
+            <p>
+              This evaluation was generated directly via Gemini analytical reasoning. 
+              Authoritative web evidence retrieval (RAG) and official gazette cross-checking are scheduled for an upcoming phase. 
+              Claims without external archival records are categorized as unconfirmed or advisory.
+            </p>
           </div>
         </div>
       )}

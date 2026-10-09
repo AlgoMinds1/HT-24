@@ -85,7 +85,7 @@
     "evidence": {
       "type": "array",
       "description": "List of reference sources and evidence supporting the verdict",
-      "minItems": 1,
+      "minItems": 0,
       "items": {
         "type": "object",
         "required": ["source_name", "url", "stance", "excerpt"],
@@ -144,7 +144,7 @@
     "truth_timeline": {
       "type": "array",
       "description": "Chronological development of facts, scheme dates, or claim propagation",
-      "minItems": 1,
+      "minItems": 0,
       "items": {
         "type": "object",
         "required": ["date", "event", "significance"],
