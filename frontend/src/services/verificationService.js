@@ -103,19 +103,39 @@ export async function verifyForward(inputPayload, onStepProgress) {
   // ============================================================================
   // LIVE MODE (Backend API POST /api/verify)
   // ============================================================================
-  if (inputPayload.type !== 'text') {
-    throw new Error(
-      `Live verification currently supports text claims only. Multimodal verification (${inputPayload.type}) is planned for an upcoming phase. Please submit a text claim or enable mock mode.`
-    );
+  let fetchOptions = {
+    method: 'POST'
+  };
+
+  if (inputPayload.type === 'text') {
+    const textToVerify = typeof inputPayload.content === 'string' ? inputPayload.content.trim() : '';
+    if (!textToVerify || textToVerify.length < 10) {
+      throw new Error('Please provide at least 10 characters of text to verify.');
+    }
+    fetchOptions.headers = { 'Content-Type': 'application/json' };
+    fetchOptions.body = JSON.stringify({ inputType: 'text', text: textToVerify });
+
+  } else if (inputPayload.type === 'url') {
+    const urlToVerify = typeof inputPayload.content === 'string' ? inputPayload.content.trim() : '';
+    if (!urlToVerify) {
+      throw new Error('Please provide a valid URL to verify.');
+    }
+    fetchOptions.headers = { 'Content-Type': 'application/json' };
+    fetchOptions.body = JSON.stringify({ inputType: 'url', url: urlToVerify });
+
+  } else if (inputPayload.type === 'image' || inputPayload.type === 'audio' || inputPayload.type === 'pdf') {
+    if (!inputPayload.file) {
+      throw new Error(`Please attach a ${inputPayload.type} file before running verification.`);
+    }
+    const formData = new FormData();
+    formData.append('inputType', inputPayload.type);
+    formData.append('file', inputPayload.file);
+    fetchOptions.body = formData; // Browser automatically populates multipart/form-data boundary
+  } else {
+    throw new Error(`Unsupported input type: ${inputPayload.type}`);
   }
 
-  const textToVerify = typeof inputPayload.content === 'string' ? inputPayload.content.trim() : '';
-
-  if (!textToVerify || textToVerify.length < 10) {
-    throw new Error('Please provide at least 10 characters of text to verify.');
-  }
-
-  if (onStepProgress) onStepProgress(0); // Extracting claim
+  if (onStepProgress) onStepProgress(0); // Ingesting input & extracting claim
 
   try {
     const progressTimer1 = setTimeout(() => {
@@ -126,16 +146,7 @@ export async function verifyForward(inputPayload, onStepProgress) {
       if (onStepProgress) onStepProgress(2); // Adversarial stress-test
     }, 2800);
 
-    const response = await fetch(`${API_BASE_URL}/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputType: 'text',
-        text: textToVerify
-      })
-    });
+    const response = await fetch(`${API_BASE_URL}/verify`, fetchOptions);
 
     clearTimeout(progressTimer1);
     clearTimeout(progressTimer2);

@@ -441,6 +441,19 @@ export function normalizeVerdictContract(rawData, options = {}) {
     }
   }
 
+  // 7. Multimodal Extraction Metadata
+  const rawExtraction = data.extraction || rawInput.extraction || {};
+  const extractionObj = {
+    extractedText: rawExtraction.extractedText || undefined,
+    transcript: rawExtraction.transcript || undefined,
+    warnings: Array.isArray(rawExtraction.warnings) ? rawExtraction.warnings : [],
+    readability: rawExtraction.readability || 'clear',
+    sourceUrl: rawExtraction.sourceUrl || undefined,
+    fileName: rawExtraction.fileName || undefined
+  };
+
+  inputObj.extraction = extractionObj;
+
   return {
     id: data.id || `rep-${Date.now()}`,
     mode,
@@ -449,6 +462,7 @@ export function normalizeVerdictContract(rawData, options = {}) {
     evidence: normalizedEvidence,
     stressTest: stressTestObj,
     truthTimeline: normalizedTimeline,
-    actionRisk: actionRiskObj
+    actionRisk: actionRiskObj,
+    extraction: extractionObj
   };
 }

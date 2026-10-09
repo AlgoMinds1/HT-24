@@ -57,6 +57,34 @@ function cleanJsonText(rawText) {
 }
 
 /**
+ * Retries a Gemini API call if a transient 503 (high demand) or 429 occurs.
+ */
+async function callGeminiWithRetry(fn, retries = 3, delayMs = 1500) {
+  let currentDelay = delayMs;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isTransient = 
+        err.status === 503 || 
+        err.status === 429 || 
+        err.message?.includes('503') || 
+        err.message?.includes('high demand') ||
+        err.message?.includes('Resource exhausted') ||
+        err.message?.includes('RESOURCE_EXHAUSTED');
+
+      if (isTransient && attempt < retries) {
+        console.warn(`[Gemini] Transient error (${err.message}). Retrying in ${currentDelay}ms... (attempt ${attempt}/${retries})`);
+        await new Promise(res => setTimeout(res, currentDelay));
+        currentDelay = Math.round(currentDelay * 1.5);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/**
  * Verifies a text claim using Gemini with structured JSON output and Ajv validation.
  * Includes exactly 1 self-correcting retry if validation fails.
  * 
@@ -118,7 +146,7 @@ Produce a complete structured JSON verdict report matching this structure:
     // --------------------------------------------------------------------------
     // ATTEMPT 1: Primary Gemini Generation
     // --------------------------------------------------------------------------
-    const response1 = await model.generateContent(basePrompt);
+    const response1 = await callGeminiWithRetry(() => model.generateContent(basePrompt));
     const responseText1 = response1.response.text();
     const cleanedText1 = cleanJsonText(responseText1);
 
@@ -159,7 +187,7 @@ ${errorFeedback}
 
 Please strictly rectify these errors and return pure JSON that passes contracts/verdict.schema.json without any surrounding text.`;
 
-      const response2 = await model.generateContent(retryPrompt);
+      const response2 = await callGeminiWithRetry(() => model.generateContent(retryPrompt));
       const responseText2 = response2.response.text();
       const cleanedText2 = cleanJsonText(responseText2);
 

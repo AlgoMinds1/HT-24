@@ -1,62 +1,57 @@
 import { ApiError } from '../utils/api-error.js';
 
-const SUPPORTED_INPUT_TYPE = 'text';
-const UNSUPPORTED_TYPES = ['image', 'audio', 'pdf', 'url', 'video'];
+const VALID_INPUT_TYPES = ['text', 'image', 'audio', 'pdf', 'url'];
 
 /**
- * Validates verification request body.
+ * Validates request parameters and input type for verification requests.
  * 
- * @param {Object} body
- * @returns {{ text: string, inputType: 'text' }} Sanitized and validated request payload
+ * @param {Object} req - Express request object
+ * @returns {{ inputType: 'text'|'image'|'audio'|'pdf'|'url', text?: string, url?: string, file?: Object }}
  */
-export function validateVerificationInput(body) {
-  if (!body || typeof body !== 'object') {
-    throw ApiError.badRequest('Request body must be a valid JSON object.', 'INVALID_REQUEST_BODY');
-  }
-
+export function validateVerificationRequest(req) {
+  const body = req.body || {};
   const rawType = (body.inputType || body.type || 'text').toString().toLowerCase().trim();
 
-  if (UNSUPPORTED_TYPES.includes(rawType)) {
+  if (!VALID_INPUT_TYPES.includes(rawType)) {
     throw ApiError.unsupportedMediaType(
-      `Live verification currently supports text input only. Multimodal verification (${rawType}) is scheduled for a future release. Please submit a text forward or switch to mock mode.`,
+      `Unsupported input type: "${rawType}". Supported types: text, image, audio, pdf, url.`,
       'UNSUPPORTED_INPUT_TYPE'
     );
   }
 
-  if (rawType !== SUPPORTED_INPUT_TYPE) {
-    throw ApiError.unsupportedMediaType(
-      `Unsupported input type: "${rawType}". Please submit a text claim with inputType: "text".`,
-      'UNSUPPORTED_INPUT_TYPE'
-    );
-  }
-
-  const rawText = body.text || body.content || body.raw_text;
-
-  if (typeof rawText !== 'string' || !rawText.trim()) {
-    throw ApiError.badRequest(
-      'Please provide a non-empty text claim to verify.',
-      'MISSING_TEXT'
-    );
-  }
-
-  const trimmedText = rawText.trim();
-
-  if (trimmedText.length < 10) {
-    throw ApiError.badRequest(
-      'Text claim is too short. Please provide at least 10 characters for meaningful verification.',
-      'TEXT_TOO_SHORT'
-    );
-  }
-
-  if (trimmedText.length > 5000) {
-    throw ApiError.badRequest(
-      'Text claim exceeds maximum limit of 5,000 characters. Please provide a more concise forward or query.',
-      'TEXT_TOO_LONG'
-    );
-  }
-
-  return {
-    inputType: SUPPORTED_INPUT_TYPE,
-    text: trimmedText
+  const result = {
+    inputType: rawType
   };
+
+  if (rawType === 'text') {
+    const rawText = body.text || body.content || body.raw_text;
+    if (typeof rawText !== 'string' || !rawText.trim()) {
+      throw ApiError.badRequest('Please provide a non-empty text claim to verify.', 'MISSING_TEXT');
+    }
+    const trimmed = rawText.trim();
+    if (trimmed.length < 10) {
+      throw ApiError.badRequest('Text claim is too short. Please provide at least 10 characters.', 'TEXT_TOO_SHORT');
+    }
+    if (trimmed.length > 5000) {
+      throw ApiError.badRequest('Text claim exceeds maximum limit of 5,000 characters.', 'TEXT_TOO_LONG');
+    }
+    result.text = trimmed;
+  } else if (rawType === 'url') {
+    const rawUrl = body.url || body.text || body.content;
+    if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+      throw ApiError.badRequest('Please provide a webpage URL to verify.', 'MISSING_URL');
+    }
+    result.url = rawUrl.trim();
+  } else {
+    // image, audio, pdf
+    if (!req.file) {
+      throw ApiError.badRequest(
+        `Please attach a valid ${rawType} file under the "file" form field.`,
+        `MISSING_${rawType.toUpperCase()}_FILE`
+      );
+    }
+    result.file = req.file;
+  }
+
+  return result;
 }

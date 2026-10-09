@@ -17,7 +17,7 @@ export function getEnvConfig() {
   const PORT = parseInt(process.env.PORT || '8000', 10);
   const NODE_ENV = process.env.NODE_ENV || 'development';
   const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
-  const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '30000', 10);
+  const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '90000', 10);
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
   const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 

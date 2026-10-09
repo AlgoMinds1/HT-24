@@ -123,6 +123,46 @@ export default function InputStrip({ input = {}, mode = 'mock' }) {
         </div>
       )}
 
+      {/* Extracted Speech Transcript (Audio) */}
+      {input.extraction?.transcript && (
+        <div className="input-strip-raw-box transcript-box">
+          <div className="raw-content-header">
+            <span className="strip-subfield-label">Speech Transcript (Audio Note)</span>
+          </div>
+          <p className="raw-content-text transcript-text">
+            “{input.extraction.transcript}”
+          </p>
+        </div>
+      )}
+
+      {/* Extracted Document / OCR Text (Image / PDF) */}
+      {input.extraction?.extractedText && input.extraction.extractedText !== originalContent && (
+        <div className="input-strip-raw-box ocr-box">
+          <div className="raw-content-header">
+            <span className="strip-subfield-label">
+              {type === 'image' ? 'OCR Visual Text Extracted' : 'Extracted Document Text'}
+            </span>
+          </div>
+          <p className="raw-content-text">
+            {input.extraction.extractedText.length > 300 
+              ? `${input.extraction.extractedText.substring(0, 300)}...` 
+              : input.extraction.extractedText}
+          </p>
+        </div>
+      )}
+
+      {/* Extraction Warnings & Caveats */}
+      {input.extraction?.warnings && input.extraction.warnings.length > 0 && (
+        <div className="extraction-warnings-bar" role="status">
+          <span className="warnings-heading">Ingestion Caveat:</span>
+          <ul className="warnings-list">
+            {input.extraction.warnings.map((warn, idx) => (
+              <li key={idx} className="warning-pill">• {warn}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {displayName && displayName !== originalContent && (
         <div className="input-strip-filename">
           <span className="filename-label">Attachment / Resource:</span>

@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import { handleVerifyClaim } from '../controllers/verify.controller.js';
+import { uploadMiddleware } from '../middleware/upload.js';
 
 const router = Router();
 
 /**
  * POST /api/verify
- * Accepts text claims, validates input, queries Gemini, validates against schema.
+ * Unified verification endpoint supporting:
+ * - text (application/json)
+ * - url (application/json)
+ * - image, audio, pdf (multipart/form-data with "file" field)
  */
-router.post('/verify', handleVerifyClaim);
+router.post('/verify', uploadMiddleware.single('file'), handleVerifyClaim);
 
 export default router;
