@@ -1,0 +1,67 @@
+{
+  "input": {
+    "raw_text": "Good news! Under PM Free Laptop Distribution Scheme 2021, all 10th and 12th pass students can register at www.pmlaptop-yojana-reg.gov.in.apply to get a free HP laptop. Last date to register is 31st October!",
+    "media_type": "text",
+    "received_at": "2026-10-09T14:30:00Z",
+    "source_platform": "WhatsApp"
+  },
+  "claim": "Government of India is offering free laptops to all 10th and 12th pass students under PM Free Laptop Scheme 2021 with deadline on 31st October.",
+  "verdict": "OUTDATED",
+  "confidence": {
+    "score": 0.96,
+    "rating": "HIGH",
+    "rationale": "Cross-referenced with official Press Information Bureau (PIB) Fact Check alerts and Ministry of Education official scheme directories."
+  },
+  "plain_explanation": "This viral forward refers to a past promotional announcement from 2021 that was never a universal direct cash/laptop registration scheme. PIB Fact Check clarified that no such direct online registration portal for free laptops exists, and any past state-specific academic grant cycles from 2021 have long concluded.",
+  "evidence": [
+    {
+      "source_name": "PIB Fact Check (Government of India)",
+      "url": "https://factcheck.pib.gov.in/details/free-laptop-scheme-fake",
+      "published_date": "2021-11-04",
+      "stance": "REFUTES",
+      "excerpt": "A message is circulating on social media claiming that the Government of India is providing free laptops to all students. This claim is FAKE. No such scheme is being operated by the central government.",
+      "reliability_score": 0.99
+    },
+    {
+      "source_name": "Ministry of Education - National Scholarship Portal",
+      "url": "https://scholarships.gov.in",
+      "published_date": "2023-01-15",
+      "stance": "CONTEXTUALIZES",
+      "excerpt": "Official academic support and digital initiatives are distributed solely via verified state merit lists on scholarships.gov.in, not via third-party WhatsApp registration links.",
+      "reliability_score": 0.98
+    }
+  ],
+  "stress_test": {
+    "counter_arguments_checked": [
+      "Did state governments (e.g., UP, Tamil Nadu) offer student laptop schemes in the past?",
+      "Is there an active 2026 central government re-launch of student device subsidies?"
+    ],
+    "edge_cases_identified": [
+      "Certain state governments offered student tablets/smartphones in previous budget cycles (2021-2022), but those required institutional verification through colleges rather than open external web forms."
+    ],
+    "robustness_summary": "The claim misrepresents expired local initiatives from 2021 as an ongoing active central nationwide registration drive with a fake domain."
+  },
+  "truth_timeline": [
+    {
+      "date": "2021-08-10",
+      "event": "State-level digital empowerment schemes distributed tablets/laptops through registered educational institutions.",
+      "significance": "Historical context that scammers repurposed to craft fake viral forwards."
+    },
+    {
+      "date": "2021-11-04",
+      "event": "PIB Fact Check issued public warning declaring universal online laptop registration portals as fraudulent.",
+      "significance": "Direct official debunking of the specific forward template."
+    },
+    {
+      "date": "2026-01-01",
+      "event": "Current Ministry of Education guidelines confirmed all student aid requires verified DigiLocker/NSP authentication.",
+      "significance": "Confirms the message is obsolete and points to deceptive phishing vectors."
+    }
+  ],
+  "action_risk": {
+    "risk_level": "HIGH",
+    "risk_category": "MISINFORMATION",
+    "warning_flag": "Do not enter personal student details or pay registration processing fees.",
+    "recommended_action": "Do not click unverified links or share personal Aadhaar/school IDs. Refer only to scholarships.gov.in or official state education portals."
+  }
+}

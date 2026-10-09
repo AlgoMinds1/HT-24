@@ -1,0 +1,191 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TruthLensVerdictContract",
+  "description": "Standardized schema for TruthLens verification output and fact-checking verdicts",
+  "type": "object",
+  "required": [
+    "input",
+    "claim",
+    "verdict",
+    "confidence",
+    "plain_explanation",
+    "evidence",
+    "stress_test",
+    "truth_timeline",
+    "action_risk"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "input": {
+      "type": "object",
+      "description": "Original user input and forward metadata",
+      "required": ["raw_text"],
+      "properties": {
+        "raw_text": {
+          "type": "string",
+          "description": "Raw forward or user query text"
+        },
+        "media_type": {
+          "type": "string",
+          "enum": ["text", "image", "audio", "video", "url"],
+          "default": "text"
+        },
+        "received_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_platform": {
+          "type": "string",
+          "description": "Originating channel e.g., WhatsApp, Telegram, X, SMS"
+        }
+      }
+    },
+    "claim": {
+      "type": "string",
+      "description": "Extracted atomic factual statement being checked",
+      "minLength": 5
+    },
+    "verdict": {
+      "type": "string",
+      "description": "The standardized truth verdict",
+      "enum": [
+        "SUPPORTED",
+        "FALSE",
+        "OUTDATED",
+        "PARTLY_TRUE",
+        "UNCONFIRMED"
+      ]
+    },
+    "confidence": {
+      "type": "object",
+      "description": "Confidence evaluation score and reasoning",
+      "required": ["score", "rating"],
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Confidence score from 0.0 to 1.0"
+        },
+        "rating": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW"]
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Explanation for confidence level"
+        }
+      }
+    },
+    "plain_explanation": {
+      "type": "string",
+      "description": "Clear, accessible debunking or confirmation explanation for general users",
+      "minLength": 10
+    },
+    "evidence": {
+      "type": "array",
+      "description": "List of reference sources and evidence supporting the verdict",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["source_name", "url", "stance", "excerpt"],
+        "properties": {
+          "source_name": {
+            "type": "string",
+            "description": "Name of publisher or organization"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL link to authoritative source"
+          },
+          "published_date": {
+            "type": "string"
+          },
+          "stance": {
+            "type": "string",
+            "enum": ["REFUTES", "SUPPORTS", "CONTEXTUALIZES"]
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "Relevant quote or finding from source"
+          },
+          "reliability_score": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          }
+        }
+      }
+    },
+    "stress_test": {
+      "type": "object",
+      "description": "Adversarial verification check and edge-case analysis",
+      "required": ["counter_arguments_checked", "edge_cases_identified", "robustness_summary"],
+      "properties": {
+        "counter_arguments_checked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "edge_cases_identified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "robustness_summary": {
+          "type": "string",
+          "description": "Summary of resilience against subtle nuances or misinterpretations"
+        }
+      }
+    },
+    "truth_timeline": {
+      "type": "array",
+      "description": "Chronological development of facts, scheme dates, or claim propagation",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["date", "event", "significance"],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Date or timeframe of event"
+          },
+          "event": {
+            "type": "string",
+            "description": "Description of occurrence or statement"
+          },
+          "significance": {
+            "type": "string",
+            "description": "How this event affects the factual validity of the claim"
+          }
+        }
+      }
+    },
+    "action_risk": {
+      "type": "object",
+      "description": "Harm assessment and recommended safety actions for the recipient",
+      "required": ["risk_level", "risk_category", "recommended_action"],
+      "properties": {
+        "risk_level": {
+          "type": "string",
+          "enum": ["CRITICAL", "HIGH", "MODERATE", "LOW", "SAFE"]
+        },
+        "risk_category": {
+          "type": "string",
+          "enum": ["FINANCIAL_FRAUD", "HEALTH_HAZARD", "MISINFORMATION", "PHISHING", "CIVIC_CONFUSION", "BENIGN"]
+        },
+        "warning_flag": {
+          "type": "string",
+          "description": "Brief banner alert (e.g., 'Do not click links', 'Consult a doctor')"
+        },
+        "recommended_action": {
+          "type": "string",
+          "description": "Specific safety steps the user should follow immediately"
+        }
+      }
+    }
+  }
+}

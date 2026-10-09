@@ -1,0 +1,13 @@
+{
+  "name": "truthlens",
+  "version": "0.1.0",
+  "description": "TruthLens - Automated fact-checking and forward verification system",
+  "scripts": {
+    "validate:contracts": "node contracts/validate_fixtures.js",
+    "test": "npm run validate:contracts"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

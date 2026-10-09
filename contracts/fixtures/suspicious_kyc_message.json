@@ -1,0 +1,67 @@
+{
+  "input": {
+    "raw_text": "Dear SBI Customer, your YONO Bank account has been BLOCKED due to expired KYC documents. Update your Aadhaar and PAN immediately at https://sbi-kyc-quickupdate.net/verify to restore netbanking and avoid a Rs.5,000 penalty by tonight 9:00 PM.",
+    "media_type": "text",
+    "received_at": "2026-10-09T18:45:00Z",
+    "source_platform": "SMS"
+  },
+  "claim": "State Bank of India YONO customer account is blocked due to expired KYC and requires immediate verification via sbi-kyc-quickupdate.net to avoid a 5,000 INR penalty by 9:00 PM.",
+  "verdict": "FALSE",
+  "confidence": {
+    "score": 0.99,
+    "rating": "HIGH",
+    "rationale": "Directly matches documented phishing and smishing scam templates identified by Reserve Bank of India (RBI) and Cyber Crime portal."
+  },
+  "plain_explanation": "This message is a fraudulent phishing scam designed to steal your netbanking credentials and OTPs. Banks and the Reserve Bank of India (RBI) never send SMS messages containing unverified third-party web links (.net/.xyz) demanding immediate KYC updates or threatening sudden penalty fees with short deadlines.",
+  "evidence": [
+    {
+      "source_name": "Reserve Bank of India (RBI) - Kehta Hai Campaign",
+      "url": "https://rbi.org.in/commonman/English/Scripts/PressReleases.aspx",
+      "published_date": "2024-02-10",
+      "stance": "REFUTES",
+      "excerpt": "RBI cautions members of the public against sharing OTP, PIN, CVV, or clicking links in SMS/WhatsApp regarding KYC expiration or account suspension.",
+      "reliability_score": 0.99
+    },
+    {
+      "source_name": "State Bank of India Official Security Advisory",
+      "url": "https://sbi.co.in/web/customer-care/security-tips",
+      "published_date": "2024-05-18",
+      "stance": "REFUTES",
+      "excerpt": "SBI never sends links over SMS asking customers to update KYC. Official KYC updates are conducted strictly through official SBI branches or the official SBI YONO mobile app.",
+      "reliability_score": 0.99
+    }
+  ],
+  "stress_test": {
+    "counter_arguments_checked": [
+      "Are periodic KYC updates required by Indian banking regulations?",
+      "Does SBI ever use domain suffixes like .net or .org for customer portals?"
+    ],
+    "edge_cases_identified": [
+      "While periodic KYC is mandated by RBI guidelines every few years, legitimate notices give multiple months of notice through official registered email/post and never ask for immediate credentials over unverified third-party URLs."
+    ],
+    "robustness_summary": "Domain analysis and strict regulatory guidelines confirm this is an adversarial social engineering/smishing attack."
+  },
+  "truth_timeline": [
+    {
+      "date": "2023-01-05",
+      "event": "RBI issued circular emphasizing digital re-KYC processes can only be initiated by the customer from within authenticated core banking platforms.",
+      "significance": "Disproves legitimate external link-based verification."
+    },
+    {
+      "date": "2024-06-20",
+      "event": "Indian Cyber Crime Coordination Centre (I4C) listed sbi-*-update domain patterns in active scam registries.",
+      "significance": "Technical threat intelligence confirming phishing infrastructure."
+    },
+    {
+      "date": "2026-01-10",
+      "event": "Telecom Regulatory Authority (TRAI) enforced DLT header validation to curb unauthorized SMS spoofing.",
+      "significance": "Shows that messages arriving from personal mobile numbers or non-standard sender IDs are unauthorized."
+    }
+  ],
+  "action_risk": {
+    "risk_level": "CRITICAL",
+    "risk_category": "PHISHING",
+    "warning_flag": "DO NOT CLICK: High risk of immediate unauthorized bank account drainage.",
+    "recommended_action": "Do not click the link or enter password/OTP. Block the sender and report the message to the National Cyber Crime Reporting Portal at cybercrime.gov.in or helpline 1930."
+  }
+}
