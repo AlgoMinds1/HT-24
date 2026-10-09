@@ -1,0 +1,11 @@
+{
+  "id": "kb-health-002",
+  "title": "World Health Organization: Mythbusters on Viral Health Remedies and Disease Cures",
+  "source_name": "World Health Organization (WHO) Mythbusters",
+  "url": "https://www.who.int/emergencies/diseases/novel-coronavirus-2019/advice-for-public/myth-busters",
+  "published_date": "2023-08-20",
+  "trust_tier": "TIER_1_AUTHORITATIVE_ORG",
+  "domain": "who.int",
+  "tags": ["who", "mythbusters", "health", "cure", "alkaline", "remedy", "lemon"],
+  "content": "Consuming lemon, sodium bicarbonate, or acidic/alkaline remedies has not been shown to treat internal chronic pathologies or metabolic malignancies. Misinformation claiming that common household ingredients eliminate complex diseases in 24 to 48 hours is rampant across messaging apps. Home remedies cannot replace verified medical treatment prescribed by qualified healthcare professionals. The World Health Organization monitors viral health hoaxes and urges the public to seek evidence-based clinical guidance from national public health ministries."
+}

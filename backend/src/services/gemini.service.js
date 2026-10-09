@@ -21,23 +21,21 @@ function getClient() {
 const SYSTEM_INSTRUCTION = `You are TruthLens Fact-Checking and Verification Intelligence Engine.
 You analyze forwarded WhatsApp messages, social media posts, and viral claims to determine factual accuracy, scam risks, and misinformation patterns.
 
-IMPORTANT ARCHITECTURAL CONSTRAINTS FOR THIS LIVE PHASE:
-1. Live web-search retrieval (RAG) is not yet active in this phase.
-2. DO NOT fabricate, hallucinate, or invent sources, news articles, publisher URLs, or citations.
-   Keep "evidence": [] (an empty array).
-3. Extract the core atomic factual claim being evaluated into "claim".
-4. Determine the verdict based on verified common knowledge and rigorous reasoning.
-   Allowed verdict values:
-   - "SUPPORTED" (claim is definitively true and backed by established facts)
+GROUNDED RETRIEVAL & EVIDENCE INSTRUCTIONS:
+1. You are provided with verified evidence citations retrieved from authoritative knowledge bases and fact-check registries.
+2. Ground your reasoning, plain explanation, and verdict strictly in the provided evidence.
+3. NEVER fabricate, hallucinate, or alter publisher URLs, citations, or quotes.
+4. Extract the core atomic factual claim being evaluated into "claim".
+5. Allowed verdict values:
+   - "SUPPORTED" (claim is backed by credible authoritative sources)
    - "FALSE" (claim is fabricated, scientifically debunked, or a known scam)
    - "OUTDATED" (information was true in the past but has expired or been superseded)
    - "PARTLY_TRUE" (mix of accurate facts and misleading exaggerations)
-   - "UNCONFIRMED" (insufficient information exists to conclusively confirm or debunk)
-5. Provide a realistic confidence evaluation (score: 0.0 to 1.0, rating: "HIGH"|"MEDIUM"|"LOW", rationale: string).
-6. Formulate stress-test counter-arguments, edge cases, and robustness summary.
-7. Provide an action-risk assessment identifying what the message asks the recipient to do, exploitation severity, and safe guidance.
-8. Truth timeline may be empty [] or contain verifiable historical development milestones.
-9. Format response as strictly valid JSON adhering to the standardized schema.`;
+   - "UNCONFIRMED" (insufficient reliable evidence exists to confirm or refute)
+6. Provide a realistic confidence evaluation (score: 0.0 to 1.0, rating: "HIGH"|"MEDIUM"|"LOW", rationale: string).
+7. Formulate stress-test counter-arguments, edge cases, and robustness summary.
+8. Provide an action-risk assessment identifying user risk level, risk category, and safe actionable guidance.
+9. Format response as strictly valid JSON adhering to contracts/verdict.schema.json.`;
 
 /**
  * Strips markdown code blocks if the model wrapped output in ```json ... ```
@@ -57,7 +55,7 @@ function cleanJsonText(rawText) {
 }
 
 /**
- * Retries a Gemini API call if a transient 503 (high demand) or 429 occurs.
+ * Retries a Gemini API call if a transient 503 or 429 occurs.
  */
 async function callGeminiWithRetry(fn, retries = 3, delayMs = 1500) {
   let currentDelay = delayMs;
@@ -85,13 +83,71 @@ async function callGeminiWithRetry(fn, retries = 3, delayMs = 1500) {
 }
 
 /**
- * Verifies a text claim using Gemini with structured JSON output and Ajv validation.
- * Includes exactly 1 self-correcting retry if validation fails.
+ * Constructs a standardized, schema-compliant UNCONFIRMED verdict payload
+ * when no grounded evidence can be retrieved to substantiate or debunk a claim.
+ */
+export function buildUnconfirmedPayload(claimText, retrievalMetadata = {}) {
+  const providerSummary = (retrievalMetadata.providers_status || [])
+    .map(p => `${p.provider} (${p.status})`)
+    .join(', ');
+
+  const payload = {
+    input: {
+      raw_text: claimText,
+      media_type: 'text',
+      received_at: new Date().toISOString(),
+      source_platform: 'Web Forward'
+    },
+    claim: claimText.length > 300 ? claimText.slice(0, 300) : claimText,
+    verdict: 'UNCONFIRMED',
+    confidence: {
+      score: 0.35,
+      rating: 'LOW',
+      rationale: `No authoritative sources, official gazettes, or verified fact-checks were retrieved to substantiate or debunk this claim across active retrieval providers (${providerSummary || 'local KB, search'}).`
+    },
+    plain_explanation: `This claim could not be confirmed. A thorough search across authoritative databases and fact-checking registries yielded no credible supporting evidence or official verification. In the absence of corroborating evidence, treat this forward with caution and avoid sharing it.`,
+    evidence: [],
+    stress_test: {
+      counter_arguments_checked: [
+        'Could this claim be too new to have official debunks or press coverage?',
+        'Is there any primary source or government portal substantiating the asserted details?'
+      ],
+      edge_cases_identified: [
+        'Claims lacking coverage across reputable news archives and government repositories frequently represent unverified rumors or emerging misinformation.'
+      ],
+      robustness_summary: 'Strict epistemic constraint applied: claims without grounded evidence cannot be validated as true or false and remain unconfirmed.'
+    },
+    truth_timeline: [
+      {
+        date: new Date().toISOString().split('T')[0],
+        event: 'Claim evaluated against authoritative knowledge base and retrieval providers with zero corroboration.',
+        significance: 'Absence of verified evidence prevents factual confirmation.'
+      }
+    ],
+    action_risk: {
+      risk_level: 'MODERATE',
+      risk_category: 'MISINFORMATION',
+      warning_flag: 'UNVERIFIED CLAIM: Do not forward or take financial/medical action',
+      recommended_action: 'Do not circulate this message. Wait for official statements from verified organizations or government authorities before acting on its contents.'
+    }
+  };
+
+  const validation = validateVerdictPayload(payload);
+  if (!validation.valid) {
+    console.error('Unconfirmed payload failed schema validation:', validation.errors);
+  }
+  return payload;
+}
+
+/**
+ * Verifies a text claim using Gemini with structured JSON output, Ajv validation,
+ * and grounded evidence citations.
  * 
  * @param {string} textClaim
+ * @param {Array<Object>} verifiedEvidence - Verified evidence items from retrieval engine
  * @returns {Promise<Object>} Verified verdict payload conforming to verdict.schema.json
  */
-export async function verifyTextWithGemini(textClaim) {
+export async function verifyTextWithGemini(textClaim, verifiedEvidence = []) {
   const client = getClient();
   const model = client.getGenerativeModel({
     model: env.GEMINI_MODEL,
@@ -102,11 +158,24 @@ export async function verifyTextWithGemini(textClaim) {
     }
   });
 
+  const formattedEvidencePrompt = verifiedEvidence.length > 0
+    ? verifiedEvidence.map((e, idx) => `[Evidence Citation ${idx + 1}]
+- Source: ${e.source_name}
+- URL: ${e.url}
+- Date: ${e.published_date || 'N/A'}
+- Stance: ${e.stance}
+- Verified Quote: "${e.excerpt}"
+- Reliability: ${e.reliability_score}`).join('\n\n')
+    : 'No external evidence citations available.';
+
   const basePrompt = `Analyze the following forwarded message or claim:
 
 """
 ${textClaim}
 """
+
+GROUNDED RETRIEVAL CITATIONS:
+${formattedEvidencePrompt}
 
 Produce a complete structured JSON verdict report matching this structure:
 {
@@ -130,7 +199,9 @@ Produce a complete structured JSON verdict report matching this structure:
     "edge_cases_identified": ["Edge case or nuance 1"],
     "robustness_summary": "Robustness summary"
   },
-  "truth_timeline": [],
+  "truth_timeline": [
+    { "date": "YYYY-MM-DD", "event": "Historical or factual event", "significance": "Impact on claim" }
+  ],
   "action_risk": {
     "risk_level": "CRITICAL" | "HIGH" | "MODERATE" | "LOW" | "SAFE",
     "risk_category": "FINANCIAL_FRAUD" | "HEALTH_HAZARD" | "MISINFORMATION" | "PHISHING" | "CIVIC_CONFUSION" | "BENIGN",
@@ -157,7 +228,6 @@ Produce a complete structured JSON verdict report matching this structure:
     }
 
     if (parsedPayload) {
-      // Ensure input block is always attached safely
       if (!parsedPayload.input) {
         parsedPayload.input = {
           raw_text: textClaim,
@@ -166,6 +236,21 @@ Produce a complete structured JSON verdict report matching this structure:
           source_platform: 'Web Forward'
         };
       }
+
+      // Strictly map verified evidence items to ensure zero hallucination
+      if (verifiedEvidence.length > 0) {
+        parsedPayload.evidence = verifiedEvidence.map(e => ({
+          source_name: e.source_name,
+          url: e.url,
+          published_date: e.published_date || undefined,
+          stance: e.stance,
+          excerpt: e.excerpt,
+          reliability_score: e.reliability_score
+        }));
+      } else {
+        parsedPayload.evidence = [];
+      }
+
       validationResult = validateVerdictPayload(parsedPayload);
     }
 
@@ -200,6 +285,20 @@ Please strictly rectify these errors and return pure JSON that passes contracts/
           source_platform: 'Web Forward'
         };
       }
+
+      if (verifiedEvidence.length > 0) {
+        parsedPayload.evidence = verifiedEvidence.map(e => ({
+          source_name: e.source_name,
+          url: e.url,
+          published_date: e.published_date || undefined,
+          stance: e.stance,
+          excerpt: e.excerpt,
+          reliability_score: e.reliability_score
+        }));
+      } else {
+        parsedPayload.evidence = [];
+      }
+
       validationResult = validateVerdictPayload(parsedPayload);
 
       if (!validationResult.valid) {
@@ -219,7 +318,6 @@ Please strictly rectify these errors and return pure JSON that passes contracts/
       throw err;
     }
 
-    // Handle Gemini SDK specific error statuses
     if (err.status === 400 || err.message?.includes('API_KEY_INVALID')) {
       throw ApiError.badRequest('Invalid Gemini API Key configured on backend.', 'INVALID_API_KEY');
     }

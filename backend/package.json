@@ -8,7 +8,10 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node scripts/test-verify.js",
-    "test:multimodal": "node scripts/test-multimodal-ingest.js"
+    "test:multimodal": "node scripts/test-multimodal-ingest.js",
+    "test:retrieval": "node scripts/test-retrieval.js",
+    "kb:ingest": "node scripts/ingest-kb.js",
+    "inspect:evidence": "node scripts/inspect-evidence.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",

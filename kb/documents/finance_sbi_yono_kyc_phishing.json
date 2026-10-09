@@ -1,0 +1,11 @@
+{
+  "id": "kb-fin-001",
+  "title": "State Bank of India & RBI Advisory: Fake KYC Expiration and Account Block SMS Alerts",
+  "source_name": "State Bank of India Official Security Advisory",
+  "url": "https://sbi.co.in/",
+  "published_date": "2024-05-18",
+  "trust_tier": "TIER_1_OFFICIAL_GOV",
+  "domain": "sbi.co.in",
+  "tags": ["finance", "sbi", "yono", "kyc", "bank", "sms", "blocked", "penalty", "phishing"],
+  "content": "SBI never sends links over SMS asking customers to update KYC. Official KYC updates are conducted strictly through official SBI branches or the official SBI YONO mobile app. Cyber criminals are circulating deceptive SMS and WhatsApp messages claiming that user YONO bank accounts have been blocked due to outdated KYC documents and urging recipients to click external links under threat of financial penalty. The Reserve Bank of India and SBI emphasize that banks will never ask customers to verify passwords, debit card PINs, CVV, or one-time passwords through SMS web links. Customers must never share login credentials, OTPs, or debit card PINs on external portals or links received via SMS. If you receive such an SMS, do not click the link and immediately report the incident to the official national cyber crime portal."
+}

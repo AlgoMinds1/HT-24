@@ -1,0 +1,56 @@
+[
+  {
+    "domain": "gov.in",
+    "name": "Government of India Official Portals",
+    "trust_tier": "TIER_1_OFFICIAL_GOV",
+    "reliability_score": 0.99
+  },
+  {
+    "domain": "pib.gov.in",
+    "name": "Press Information Bureau Fact Check",
+    "trust_tier": "TIER_1_OFFICIAL_GOV",
+    "reliability_score": 0.99
+  },
+  {
+    "domain": "rbi.org.in",
+    "name": "Reserve Bank of India",
+    "trust_tier": "TIER_1_OFFICIAL_GOV",
+    "reliability_score": 0.99
+  },
+  {
+    "domain": "sbi.co.in",
+    "name": "State Bank of India Official Portal",
+    "trust_tier": "TIER_1_OFFICIAL_GOV",
+    "reliability_score": 0.99
+  },
+  {
+    "domain": "who.int",
+    "name": "World Health Organization",
+    "trust_tier": "TIER_1_AUTHORITATIVE_ORG",
+    "reliability_score": 0.99
+  },
+  {
+    "domain": "cancer.org",
+    "name": "American Cancer Society",
+    "trust_tier": "TIER_1_AUTHORITATIVE_ORG",
+    "reliability_score": 0.98
+  },
+  {
+    "domain": "altnews.in",
+    "name": "Alt News Fact Checking",
+    "trust_tier": "TIER_2_FACT_CHECKER",
+    "reliability_score": 0.92
+  },
+  {
+    "domain": "boomlive.in",
+    "name": "BOOM Live",
+    "trust_tier": "TIER_2_FACT_CHECKER",
+    "reliability_score": 0.91
+  },
+  {
+    "domain": "snopes.com",
+    "name": "Snopes Fact Check",
+    "trust_tier": "TIER_2_FACT_CHECKER",
+    "reliability_score": 0.92
+  }
+]

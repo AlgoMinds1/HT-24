@@ -1,10 +1,12 @@
 import { validateVerificationRequest } from '../validators/input.validator.js';
 import { ingestInput } from '../ingest/index.js';
-import { verifyTextWithGemini } from '../services/gemini.service.js';
+import { verifyTextWithGemini, buildUnconfirmedPayload } from '../services/gemini.service.js';
+import { retrieverService } from '../retrieval/retriever.service.js';
 
 /**
  * Controller handling POST /api/verify for all five input types:
  * text, image, audio, pdf, and url.
+ * Incorporates Phase 5 Grounded Evidence Retrieval and strict UNCONFIRMED constraints.
  */
 export async function handleVerifyClaim(req, res, next) {
   try {
@@ -25,10 +27,20 @@ export async function handleVerifyClaim(req, res, next) {
       });
     }
 
-    // 3. Verify the normalized claim with existing Gemini verification engine
-    const verdictPayload = await verifyTextWithGemini(claimText);
+    // 3. Phase 5 Grounded Evidence Retrieval across Curated KB, Fact Check API, and Search
+    const { evidence, retrieval_metadata } = await retrieverService.retrieveEvidence(claimText);
 
-    // 4. Enrich verdict with multimodal input metadata and extraction artifacts
+    let verdictPayload;
+
+    // 4. Strict Epistemic Constraint:
+    // If no useful evidence was found, return UNCONFIRMED. Never present unsupported claims as confirmed.
+    if (!evidence || evidence.length === 0) {
+      verdictPayload = buildUnconfirmedPayload(claimText, retrieval_metadata);
+    } else {
+      verdictPayload = await verifyTextWithGemini(claimText, evidence);
+    }
+
+    // 5. Enrich verdict with multimodal input metadata and extraction artifacts
     verdictPayload.mode = 'live';
     verdictPayload.input = {
       raw_text: claimText,
@@ -37,8 +49,9 @@ export async function handleVerifyClaim(req, res, next) {
       source_platform: ingestionResult.extraction?.sourceUrl || ingestionResult.extraction?.fileName || 'Multimodal Forward'
     };
 
-    // 5. Attach extraction metadata (transcripts, OCR text, readability warnings)
+    // 6. Attach extraction metadata & retrieval provider status reports
     verdictPayload.extraction = ingestionResult.extraction;
+    verdictPayload.retrieval_metadata = retrieval_metadata;
 
     if (res.headersSent) return;
     return res.status(200).json(verdictPayload);

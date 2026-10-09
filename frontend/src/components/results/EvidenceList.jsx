@@ -24,9 +24,16 @@ export default function EvidenceList({ evidence = [] }) {
 
   const safeEvidence = Array.isArray(evidence) ? evidence : [];
 
+  const getItemRelation = (item) => {
+    if (item.relation) return item.relation;
+    if (item.stance === 'REFUTES') return 'CONTRADICTING';
+    if (item.stance === 'SUPPORTS') return 'SUPPORTING';
+    return 'CONTEXTUAL';
+  };
+
   const filteredItems = safeEvidence.filter(item => {
     if (filterRelation === 'ALL') return true;
-    return item.relation === filterRelation;
+    return getItemRelation(item) === filterRelation;
   });
 
   const getRelationBadge = (relation) => {
@@ -66,21 +73,21 @@ export default function EvidenceList({ evidence = [] }) {
               className={`filter-btn ${filterRelation === 'SUPPORTING' ? 'active' : ''}`}
               onClick={() => setFilterRelation('SUPPORTING')}
             >
-              Supporting ({safeEvidence.filter(e => e.relation === 'SUPPORTING').length})
+              Supporting ({safeEvidence.filter(e => getItemRelation(e) === 'SUPPORTING').length})
             </button>
             <button
               type="button"
               className={`filter-btn ${filterRelation === 'CONTRADICTING' ? 'active' : ''}`}
               onClick={() => setFilterRelation('CONTRADICTING')}
             >
-              Contradicting ({safeEvidence.filter(e => e.relation === 'CONTRADICTING').length})
+              Contradicting ({safeEvidence.filter(e => getItemRelation(e) === 'CONTRADICTING').length})
             </button>
             <button
               type="button"
               className={`filter-btn ${filterRelation === 'CONTEXTUAL' ? 'active' : ''}`}
               onClick={() => setFilterRelation('CONTEXTUAL')}
             >
-              Context ({safeEvidence.filter(e => e.relation === 'CONTEXTUAL').length})
+              Context ({safeEvidence.filter(e => getItemRelation(e) === 'CONTEXTUAL').length})
             </button>
           </div>
         )}
@@ -105,38 +112,39 @@ export default function EvidenceList({ evidence = [] }) {
       ) : (
         <div className="evidence-items-grid">
           {filteredItems.map((item, idx) => {
-            const hasSource = Boolean(item.sourceName);
-            const hasQuote = Boolean(item.quote);
-            const hasDate = Boolean(item.date);
-            const hasTrust = Boolean(item.trustTier);
+            const sourceName = item.sourceName || item.source_name;
+            const quoteText = item.quote || item.excerpt;
+            const dateText = item.date || item.published_date;
+            const trustText = item.trustTier || (item.reliability_score ? `${Math.round(item.reliability_score * 100)}% Trust` : null);
+            const relation = getItemRelation(item);
             const hasValidUrl = item.url && (item.url.startsWith('http://') || item.url.startsWith('https://'));
 
             return (
               <article key={item.id || idx} className="evidence-item-card">
                 <div className="evidence-item-top">
                   <div className="evidence-source-info">
-                    {hasSource && <h4 className="evidence-source-name">{item.sourceName}</h4>}
-                    {hasDate && (
+                    {sourceName && <h4 className="evidence-source-name">{sourceName}</h4>}
+                    {dateText && (
                       <span className="evidence-date">
                         <Calendar size={12} aria-hidden="true" />
-                        <span>{item.date}</span>
+                        <span>{dateText}</span>
                       </span>
                     )}
                   </div>
-                  {getRelationBadge(item.relation)}
+                  {getRelationBadge(relation)}
                 </div>
 
-                {hasQuote && (
+                {quoteText && (
                   <blockquote className="evidence-quote-text">
-                    “{item.quote}”
+                    “{quoteText}”
                   </blockquote>
                 )}
 
                 <div className="evidence-item-footer">
-                  {hasTrust && (
+                  {trustText && (
                     <span className="evidence-trust-tier">
                       <ShieldCheck size={13} aria-hidden="true" />
-                      <span>{item.trustTier}</span>
+                      <span>{trustText}</span>
                     </span>
                   )}
 
