@@ -36,16 +36,16 @@ export default function EvidenceList({ evidence = [] }) {
     return getItemRelation(item) === filterRelation;
   });
 
-  const getRelationBadge = (relation) => {
-    switch (relation) {
-      case 'SUPPORTING':
-        return <span className="relation-badge supporting">Supports Claim</span>;
-      case 'CONTRADICTING':
-        return <span className="relation-badge contradicting">Refutes Claim</span>;
-      case 'CONTEXTUAL':
-      default:
-        return <span className="relation-badge contextual">Context / Baseline</span>;
-    }
+  const getRelationBadge = (item) => {
+    const relation = getItemRelation(item);
+    return (
+      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+        {relation === 'SUPPORTING' && <span className="relation-badge supporting">Supports Claim</span>}
+        {relation === 'CONTRADICTING' && <span className="relation-badge contradicting">Refutes Claim</span>}
+        {relation === 'CONTEXTUAL' && <span className="relation-badge contextual">Context / Baseline</span>}
+        {item.isOfficial && <span className="relation-badge" style={{ background: '#e0e7ff', color: '#1e40af' }}>Official Source</span>}
+      </div>
+    );
   };
 
   return (
@@ -131,7 +131,7 @@ export default function EvidenceList({ evidence = [] }) {
                       </span>
                     )}
                   </div>
-                  {getRelationBadge(relation)}
+                  {getRelationBadge(item)}
                 </div>
 
                 {quoteText && (

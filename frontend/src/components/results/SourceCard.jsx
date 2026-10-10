@@ -25,29 +25,31 @@ export default function SourceCard({ item, index }) {
   const url = item.url || null;
   const origin = item.provider || item.origin || (url && url.includes('gov') ? 'Official Gazette' : 'Knowledge Base');
 
-  // Classification stance mapping
-  const stance = (item.relation || item.stance || 'CONTEXTUAL').toUpperCase();
-  let classification = {
-    label: 'Context & Background',
+  // Multi-dimensional classification mapping
+  const claimRel = item.claimRelationship || (
+    (item.relation || item.stance || '').toUpperCase() === 'SUPPORTING' || (item.relation || item.stance || '').toUpperCase() === 'SUPPORTS' ? 'SUPPORTS_CLAIM' :
+    ((item.relation || item.stance || '').toUpperCase() === 'CONTRADICTING' || (item.relation || item.stance || '').toUpperCase() === 'REFUTES' ? 'CONTRADICTS_CLAIM' : 'CONTEXT_ONLY')
+  );
+
+  let relationshipBadge = {
+    label: 'Context / Background',
     className: 'badge-contextual'
   };
 
-  if (stance === 'SUPPORTING' || stance === 'SUPPORTS') {
-    classification = {
-      label: 'Supporting Evidence',
+  if (claimRel === 'SUPPORTS_CLAIM') {
+    relationshipBadge = {
+      label: 'Supports Claim',
       className: 'badge-supporting'
     };
-  } else if (stance === 'CONTRADICTING' || stance === 'REFUTES') {
-    classification = {
-      label: 'Contradicting Evidence',
+  } else if (claimRel === 'CONTRADICTS_CLAIM') {
+    relationshipBadge = {
+      label: 'Refutes Claim',
       className: 'badge-contradicting'
     };
-  } else if (trustTier && trustTier.includes('TIER_1')) {
-    classification = {
-      label: 'Official Primary Source',
-      className: 'badge-official'
-    };
   }
+
+  const isOfficial = Boolean(item.isOfficial || item.is_official);
+  const isTimeRelevant = Boolean(item.isTimeRelevant || item.is_time_relevant);
 
   const isLongQuote = quoteText.length > 220;
   const displayedQuote = isLongQuote && !expanded 
@@ -77,13 +79,21 @@ export default function SourceCard({ item, index }) {
                   <span>{origin.replace(/_/g, ' ')}</span>
                 </span>
               )}
+              {isOfficial && (
+                <span className="source-meta-item" style={{ color: 'var(--color-navy)', fontWeight: 600 }}>
+                  <ShieldCheck size={12} aria-hidden="true" />
+                  <span>Official Source</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        <span className={`source-classification-badge ${classification.className}`}>
-          {classification.label}
-        </span>
+        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+          <span className={`source-classification-badge ${relationshipBadge.className}`}>
+            {relationshipBadge.label}
+          </span>
+        </div>
       </div>
 
       {/* Verbatim Excerpt */}

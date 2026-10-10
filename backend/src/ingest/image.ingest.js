@@ -57,11 +57,9 @@ export async function ingestImage(file) {
   const warnings = [];
 
   if (env.hasGroqKey) {
-    const visionModels = [
-      env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview',
-      'llama-3.2-11b-vision-preview',
-      'llama-3.2-90b-vision-preview'
-    ].filter((m, i, arr) => arr.indexOf(m) === i);
+    const visionModels = (env.GROQ_VISION_FALLBACK_MODELS && env.GROQ_VISION_FALLBACK_MODELS.length > 0)
+      ? env.GROQ_VISION_FALLBACK_MODELS
+      : [env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'];
 
     const prompt = `Analyze this image (which may be a screenshot of a forwarded message, social media post, or graphic):
 1. Extract any visible text completely via OCR (prioritize message bubbles and headlines over background UI chrome).
@@ -151,7 +149,7 @@ Return JSON in this format:
   if (!extractedText && !claimText && env.hasGeminiKey) {
     const modelsToTry = (env.GEMINI_FALLBACK_MODELS && env.GEMINI_FALLBACK_MODELS.length > 0)
       ? env.GEMINI_FALLBACK_MODELS
-      : [env.GEMINI_MODEL || 'gemini-1.5-flash', 'gemini-1.5-flash'];
+      : [env.GEMINI_MODEL || 'gemini-3.8-flash', 'gemini-3.8-flash'];
 
     const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const prompt = `Analyze this image (which may be a screenshot of a forwarded message, social media post, or graphic):

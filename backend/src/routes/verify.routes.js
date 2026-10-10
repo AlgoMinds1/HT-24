@@ -33,6 +33,11 @@ router.post('/cache/clear', (req, res) => {
   res.status(200).json({ success: true, message: 'Verification cache cleared.' });
 });
 
+router.get('/cache/clear-all', (req, res) => {
+  verificationCache.clear();
+  res.status(200).json({ success: true, message: 'Verification cache cleared.' });
+});
+
 /**
  * GET /api/inspect-evidence
  * Inspects retrieved evidence, provider status, and quote validation for a given claim.
@@ -74,6 +79,50 @@ router.get('/test-verify-claim', async (req, res, next) => {
     return res.status(200).json(verdictPayload);
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * GET /api/run-unit-tests
+ * Runs the comprehensive 10-requirement grounding & verdict accuracy test suite.
+ */
+router.get('/run-unit-tests', async (req, res) => {
+  try {
+    const { runGroundingTests } = await import(`../../test/grounding-and-verdict.test.js?t=${Date.now()}`);
+    const results = runGroundingTests();
+    return res.status(200).json(results);
+  } catch (err) {
+    return res.status(200).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
+/**
+ * GET /api/reindex-kb
+ * Reindexes all documents in kb/documents into the vector store.
+ */
+router.get('/reindex-kb', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { chunkDocument } = await import('../retrieval/chunker.js');
+    const { vectorStore } = await import('../retrieval/vector_store.js');
+
+    const kbDocsDir = path.resolve(process.cwd(), '../kb/documents');
+    const docFiles = fs.readdirSync(kbDocsDir).filter(f => f.endsWith('.json'));
+    const allChunks = [];
+
+    for (const file of docFiles) {
+      const raw = fs.readFileSync(path.join(kbDocsDir, file), 'utf-8');
+      const doc = JSON.parse(raw);
+      const chunks = chunkDocument(doc, { maxWordsPerChunk: 70, overlapSentences: 1 });
+      allChunks.push(...chunks);
+    }
+
+    const indexedCount = await vectorStore.addChunks(allChunks);
+    vectorStore.load(); // reload in-memory cache
+    return res.status(200).json({ success: true, count: indexedCount });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

@@ -263,6 +263,7 @@ export function normalizeVerdictContract(rawData, options = {}) {
     label: VERDICT_LABELS[canonicalStatus] || VERDICT_LABELS.CANNOT_CONFIRM,
     confidence: safeConfidence,
     confidenceRating: safeRating,
+    strengthLabel: (typeof data.confidence === 'object' && data.confidence !== null ? data.confidence.strength_label : null) || (safeRating === 'HIGH' ? 'Strong' : (safeRating === 'LOW' ? 'Insufficient' : 'Limited')),
     explanation: plainExplanation.trim(),
     rationale: confidenceRationale.trim()
   };
@@ -278,6 +279,26 @@ export function normalizeVerdictContract(rawData, options = {}) {
         trustTier = `${Math.round(relScore * 100)}% Trust Weight`;
       }
 
+      const rawStance = (item.stance || item.relation || '').toUpperCase();
+      const claimRel = item.claim_relationship || (
+        rawStance === 'SUPPORTS' || rawStance === 'SUPPORTING' ? 'SUPPORTS_CLAIM' :
+        (rawStance === 'REFUTES' || rawStance === 'CONTRADICTS' || rawStance === 'CONTRADICTING' ? 'CONTRADICTS_CLAIM' : 'CONTEXT_ONLY')
+      );
+
+      const isOfficial = Boolean(
+        item.is_official ?? item.isOfficial ?? 
+        (typeof item.url === 'string' && (item.url.includes('.gov.in') || item.url.includes('.nic.in') || item.url.includes('who.int') || item.url.includes('rbi.org.in')))
+      );
+      const isTimeRelevant = Boolean(item.is_time_relevant ?? item.isTimeRelevant ?? item.published_date ?? item.date);
+
+      const labels = Array.isArray(item.labels) && item.labels.length > 0
+        ? item.labels
+        : [
+            claimRel,
+            isOfficial ? 'OFFICIAL_SOURCE' : null,
+            isTimeRelevant ? 'TIME_RELEVANT' : null
+          ].filter(Boolean);
+
       return {
         id: item.id || `ev-${index}-${(item.source_name || 'src').substring(0, 8)}`,
         sourceName: (item.source_name || item.sourceName || '').trim(),
@@ -286,6 +307,11 @@ export function normalizeVerdictContract(rawData, options = {}) {
         trustTier: trustTier.trim(),
         reliabilityScore: relScore,
         relation: normalizeEvidenceRelation(item.stance || item.relation),
+        claimRelationship: claimRel,
+        labels,
+        isOfficial,
+        isTimeRelevant,
+        origin: item.origin || item.provider || (isOfficial ? 'Official Gazette / Registry' : 'Knowledge Base'),
         url: typeof item.url === 'string' && item.url.startsWith('http') ? item.url.trim() : ''
       };
     });

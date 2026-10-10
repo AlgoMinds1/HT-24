@@ -19,13 +19,12 @@ export function getEnvConfig() {
   const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
   const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '90000', 10);
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   const GEMINI_FALLBACK_MODELS = [
     GEMINI_MODEL,
-    'gemini-flash-latest',
-    'gemini-2.5-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-2.5-flash'
+    'gemini-3.8-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash'
   ].filter((m, i, arr) => arr.indexOf(m) === i);
 
   const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
@@ -33,10 +32,13 @@ export function getEnvConfig() {
   const GROQ_FALLBACK_MODELS = [
     GROQ_MODEL,
     'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant',
-    'mixtral-8x7b-32768'
+    'llama-3.1-8b-instant'
   ].filter((m, i, arr) => arr.indexOf(m) === i);
-  const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
+  const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
+  const GROQ_VISION_FALLBACK_MODELS = [
+    GROQ_VISION_MODEL,
+    'qwen/qwen3.8-27b'
+  ].filter((m, i, arr) => arr.indexOf(m) === i);
   const GROQ_AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3';
 
   // Do not fail startup if running in mock/offline test environments unless explicitly required

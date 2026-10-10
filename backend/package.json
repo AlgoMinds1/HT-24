@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node scripts/test-verify.js",
+    "test:grounding": "node test/grounding-and-verdict.test.js",
     "test:multimodal": "node scripts/test-multimodal-ingest.js",
     "test:retrieval": "node scripts/test-retrieval.js",
     "kb:ingest": "node scripts/ingest-kb.js",

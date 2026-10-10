@@ -145,10 +145,12 @@ export default function VerificationSummary({
 
             {/* Calibrated Confidence Visual Meter */}
             {hasValidConfidence && (
-              <div className="confidence-meter-card" title="Confidence evaluated against authoritative records">
+              <div className="confidence-meter-card" title="Calibrated evidence strength evaluated against retrieved records">
                 <div className="confidence-meter-header">
-                  <span className="meter-label">SOURCE CORROBORATION</span>
-                  <span className="meter-score-highlight">{percentage}%</span>
+                  <span className="meter-label">EVIDENCE STRENGTH</span>
+                  <span className="meter-score-highlight">
+                    {verdict.strengthLabel ? verdict.strengthLabel : (confidenceRating || `${percentage}%`)}
+                  </span>
                 </div>
                 <div className="meter-progress-track">
                   <div 
@@ -161,7 +163,11 @@ export default function VerificationSummary({
                 </div>
                 <div className="meter-footer-note">
                   <Award size={12} className="meter-award-icon" />
-                  <span>{confidenceRating ? `${confidenceRating} Confidence Rating` : 'High Cross-Corroboration'}</span>
+                  <span>
+                    {status === 'CANNOT_CONFIRM'
+                      ? 'Insufficient / Indirect Source Grounding'
+                      : (confidenceRating ? `${confidenceRating} Confidence Rating (${percentage}%)` : 'Calibrated Source Corroboration')}
+                  </span>
                 </div>
               </div>
             )}
@@ -179,7 +185,13 @@ export default function VerificationSummary({
               </p>
               <div className="analysis-card-seal">
                 <span className="seal-dot" />
-                <span>Verified against official gazettes & registry archives</span>
+                <span>
+                  {status === 'VERIFIED'
+                    ? 'Verified against official gazettes & primary archives'
+                    : (status === 'FALSE'
+                      ? 'Cross-referenced against verified fact-check debunks'
+                      : 'Evaluated against retrieved knowledge base & registry records')}
+                </span>
               </div>
             </div>
           </div>

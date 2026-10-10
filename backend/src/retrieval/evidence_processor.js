@@ -78,33 +78,19 @@ export function extractVerbatimExcerpt(rawContent, query = '') {
   return sentences[0];
 }
 
+import { classifyEvidenceItem } from './evidence_classifier.js';
+import { extractAssertions } from './assertion_extractor.js';
+
 /**
- * Determines stance label (REFUTES, SUPPORTS, CONTEXTUALIZES) based on content cues and claim keywords.
+ * Determines stance label adhering to contracts/verdict.schema.json using the classification engine.
  * 
  * @param {string} content 
  * @param {string} claim 
  * @returns {'REFUTES' | 'SUPPORTS' | 'CONTEXTUALIZES'}
  */
 export function determineStance(content, claim = '') {
-  const lower = (content + ' ' + claim).toLowerCase();
-
-  const refutingKeywords = [
-    'fake', 'false', 'hoax', 'debunk', 'refute', 'no scientific basis', 'scam', 'fraud',
-    'phishing', 'never sends', 'unproven', 'disproved', 'misinformation', 'caution', 'warning',
-    'not true', 'denies', 'misleading', 'does not cure', 'blocked'
-  ];
-
-  const supportingKeywords = [
-    'confirmed', 'verified', 'evidence shows', 'authoritative study proves',
-    'official launch', 'approved by', 'clinically proven', 'true'
-  ];
-
-  const hasRefuting = refutingKeywords.some(kw => lower.includes(kw));
-  const hasSupporting = supportingKeywords.some(kw => lower.includes(kw));
-
-  if (hasRefuting) return 'REFUTES';
-  if (hasSupporting) return 'SUPPORTS';
-  return 'CONTEXTUALIZES';
+  const result = classifyEvidenceItem({ excerpt: content }, claim);
+  return result.stance;
 }
 
 /**
@@ -117,6 +103,7 @@ export function determineStance(content, claim = '') {
  */
 export function processEvidenceItems(candidateItems = [], claim = '', options = {}) {
   const { maxItems = 4, minRelevanceScore = 0.28 } = options;
+  const assertions = extractAssertions(claim);
 
   // 1. Deduplicate by normalized URL & filter irrelevant candidates
   const seenUrls = new Set();
@@ -156,18 +143,17 @@ export function processEvidenceItems(candidateItems = [], claim = '', options = 
       excerpt = extractVerbatimExcerpt(rawContent, claim);
     }
 
-    // Determine stance adhering to schema enum: ["REFUTES", "SUPPORTS", "CONTEXTUALIZES"]
-    const stance = determineStance(excerpt || rawContent, claim);
+    // Multi-dimensional classification
+    const classification = classifyEvidenceItem(
+      { ...item, excerpt },
+      claim,
+      assertions
+    );
 
     // Compute composite reliability score
     const baseWeight = TRUST_TIER_WEIGHTS[item.trust_tier] || TRUST_TIER_WEIGHTS['DEFAULT'];
     const relScore = typeof item.relevance_score === 'number' ? item.relevance_score : 0.8;
     const finalReliability = Math.min(0.99, Math.max(0.60, Number(((baseWeight * 0.7) + (relScore * 0.3)).toFixed(2))));
-
-    // Flags for frontend presentation
-    const isOfficial = item.trust_tier === 'TIER_1_OFFICIAL_GOV' || 
-                       (item.domain && (item.domain.endsWith('.gov.in') || item.domain.includes('who.int') || item.domain.includes('sbi.co.in')));
-    const isTimeRelevant = Boolean(item.published_date);
 
     // Map stance to frontend-friendly relation
     const relationMap = {
@@ -181,18 +167,27 @@ export function processEvidenceItems(candidateItems = [], claim = '', options = 
       source_name: item.source_name || 'Authoritative Source',
       url: item.url,
       published_date: item.published_date || undefined,
-      stance: stance,
+      stance: classification.stance,
       excerpt: excerpt.trim(),
       reliability_score: finalReliability,
 
-      // Frontend compatibility properties (supports EvidenceList.jsx)
+      // Multi-dimensional labels & provenance (Requirement 5 & 7)
+      claim_relationship: classification.claim_relationship,
+      labels: classification.labels,
+      is_official: classification.is_official,
+      is_time_relevant: classification.is_time_relevant,
+      origin: item.provider || 'curated_kb',
+      provider: item.provider || 'curated_kb',
+      domain: item.domain || classification.domain || (item.url ? (() => { try { return new URL(item.url).hostname; } catch { return ''; } })() : ''),
+
+      // Frontend compatibility properties (supports EvidenceList.jsx and SourceCard.jsx)
       sourceName: item.source_name || 'Authoritative Source',
       quote: excerpt.trim(),
       date: item.published_date || undefined,
-      trustTier: item.trust_tier || (isOfficial ? 'TIER_1_OFFICIAL_GOV' : 'TIER_2_FACT_CHECKER'),
-      relation: relationMap[stance] || 'CONTEXTUAL',
-      isOfficial,
-      isTimeRelevant
+      trustTier: item.trust_tier || (classification.is_official ? 'TIER_1_OFFICIAL_GOV' : 'TIER_2_FACT_CHECKER'),
+      relation: relationMap[classification.stance] || 'CONTEXTUAL',
+      isOfficial: classification.is_official,
+      isTimeRelevant: classification.is_time_relevant
     });
   }
 

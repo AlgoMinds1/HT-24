@@ -2,6 +2,7 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import './retrieval/retriever.service.js';
 
+// TruthLens Fact-Checking Core Server Engine
 const PORT = env.PORT;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
