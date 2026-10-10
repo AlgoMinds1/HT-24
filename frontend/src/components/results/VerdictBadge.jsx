@@ -9,45 +9,55 @@ import {
 
 export const VERDICT_DISPLAY_MAP = {
   VERIFIED: {
-    label: 'Verified',
-    sublabel: 'Supported by credible authoritative evidence',
-    className: 'verdict-badge-verified',
+    label: 'Verified Authentic',
+    statusTag: 'OFFICIAL RECORD CONFIRMED',
+    sublabel: 'Fully corroborated by credible authoritative evidence & official gazettes',
+    className: 'verdict-hero-verified',
     icon: CheckCircle2,
-    color: 'var(--verdict-supported)'
+    accentColor: '#059669',
+    glowColor: 'rgba(5, 150, 105, 0.25)'
   },
   FALSE: {
     label: 'False / Fabricated',
-    sublabel: 'Contradicted by verified facts and authoritative records',
-    className: 'verdict-badge-false',
+    statusTag: 'DEBUNKED MISINFORMATION',
+    sublabel: 'Contradicted by verified facts, scientific consensus, or known scams',
+    className: 'verdict-hero-false',
     icon: XCircle,
-    color: 'var(--verdict-false)'
+    accentColor: '#E11D48',
+    glowColor: 'rgba(225, 29, 72, 0.25)'
   },
   PARTLY_SUPPORTED: {
     label: 'Partly True',
-    sublabel: 'Mix of genuine facts with misleading extrapolations',
-    className: 'verdict-badge-partly',
+    statusTag: 'MISLEADING EXTRAPOLATION',
+    sublabel: 'Contains genuine real-world elements mixed with inaccurate claims',
+    className: 'verdict-hero-partly',
     icon: AlertTriangle,
-    color: 'var(--verdict-partly)'
+    accentColor: '#D97706',
+    glowColor: 'rgba(217, 119, 6, 0.25)'
   },
   OUTDATED: {
-    label: 'Outdated',
-    sublabel: 'Was valid previously but has expired or been superseded',
-    className: 'verdict-badge-outdated',
+    label: 'Outdated & Expired',
+    statusTag: 'HISTORICAL ANNOUNCEMENT',
+    sublabel: 'Was valid in a past cycle (2021) but has concluded or been superseded',
+    className: 'verdict-hero-outdated',
     icon: Clock,
-    color: 'var(--verdict-outdated)'
+    accentColor: '#B45309',
+    glowColor: 'rgba(180, 83, 9, 0.25)'
   },
   CANNOT_CONFIRM: {
     label: 'Unconfirmed',
-    sublabel: 'Insufficient reliable evidence to confirm or debunk',
-    className: 'verdict-badge-unconfirmed',
+    statusTag: 'INSUFFICIENT EVIDENCE',
+    sublabel: 'Insufficient authoritative evidence currently exists to verify or refute',
+    className: 'verdict-hero-unconfirmed',
     icon: HelpCircle,
-    color: 'var(--verdict-unconfirmed)'
+    accentColor: '#6D28D9',
+    glowColor: 'rgba(109, 40, 217, 0.25)'
   }
 };
 
 /**
- * Prominent Verdict Badge Component
- * Displays clear, non-technical verdict with appropriate icon and styling.
+ * Eye-Catching Hero Verdict Badge Component
+ * Features large typography, glowing icon halo, status tag, and explanatory subtitle.
  */
 export default function VerdictBadge({ status = 'CANNOT_CONFIRM', customLabel = null }) {
   const config = VERDICT_DISPLAY_MAP[status] || VERDICT_DISPLAY_MAP.CANNOT_CONFIRM;
@@ -55,13 +65,17 @@ export default function VerdictBadge({ status = 'CANNOT_CONFIRM', customLabel = 
   const labelToDisplay = customLabel || config.label;
 
   return (
-    <div className={`prominent-verdict-badge ${config.className}`} role="status">
-      <div className="verdict-badge-icon-box">
-        <IconComponent size={28} strokeWidth={2.3} aria-hidden="true" />
+    <div className={`verdict-hero-badge ${config.className}`} role="status">
+      <div className="verdict-hero-top-row">
+        <div className="verdict-hero-icon-halo">
+          <IconComponent size={28} strokeWidth={2.4} aria-hidden="true" />
+        </div>
+        <span className="verdict-hero-status-tag">{config.statusTag}</span>
       </div>
-      <div className="verdict-badge-text-box">
-        <span className="verdict-badge-category">Official Determination</span>
-        <h2 className="verdict-badge-title">{labelToDisplay}</h2>
+
+      <div className="verdict-hero-text-block">
+        <h2 className="verdict-hero-main-title">{labelToDisplay}</h2>
+        <p className="verdict-hero-sublabel">{config.sublabel}</p>
       </div>
     </div>
   );

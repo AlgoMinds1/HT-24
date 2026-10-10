@@ -7,6 +7,7 @@
 import outdatedGovSchemeFixture from '../fixtures/outdated_gov_scheme.json';
 import falseHealthClaimFixture from '../fixtures/false_health_claim.json';
 import suspiciousKycMessageFixture from '../fixtures/suspicious_kyc_message.json';
+import pmVidyalaxmiFixture from '../fixtures/pm_vidyalaxmi_scheme.json';
 
 // Default mock setting based on environment
 export const DEFAULT_USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
@@ -20,6 +21,13 @@ export const FIXTURE_MAP = {
     category: 'Government & Subsidies',
     sampleSnippet: 'PM Free Laptop Scheme 2021 registration link for 10th/12th students...',
     data: outdatedGovSchemeFixture
+  },
+  pm_vidyalaxmi: {
+    key: 'pm_vidyalaxmi',
+    label: 'PM-Vidyalaxmi Education Loan',
+    category: 'Government & Education (Verified)',
+    sampleSnippet: 'Offers collateral-free and guarantor-free education loans for meritorious students...',
+    data: pmVidyalaxmiFixture
   },
   false_health: {
     key: 'false_health',
@@ -78,12 +86,30 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
       selectedFixture = FIXTURE_MAP[inputPayload.presetKey].data;
     } else if (inputPayload.type === 'text' && typeof inputPayload.content === 'string') {
       const lower = inputPayload.content.toLowerCase();
-      if (lower.includes('lemon') || lower.includes('baking soda') || lower.includes('cancer') || lower.includes('health')) {
+      if (lower.includes('vidyalaxmi') || lower.includes('education loan') || lower.includes('qhei') || lower.includes('subvention') || lower.includes('guarantor-free') || lower.includes('collateral-free')) {
+        selectedFixture = FIXTURE_MAP.pm_vidyalaxmi.data;
+      } else if (lower.includes('lemon') || lower.includes('baking soda') || lower.includes('cancer') || lower.includes('health') || lower.includes('remedy')) {
         selectedFixture = FIXTURE_MAP.false_health.data;
       } else if (lower.includes('kyc') || lower.includes('sbi') || lower.includes('yono') || lower.includes('bank') || lower.includes('penalty')) {
         selectedFixture = FIXTURE_MAP.suspicious_kyc.data;
-      } else {
+      } else if (lower.includes('laptop') || lower.includes('pmlaptop') || lower.includes('free laptop') || lower.includes('scheme 2021')) {
         selectedFixture = FIXTURE_MAP.outdated_gov.data;
+      } else {
+        // Unknown custom text query in demo mode: dynamically return UNCONFIRMED for their actual query!
+        return buildClientUnconfirmedPayload(inputPayload.content);
+      }
+    } else if (inputPayload.type === 'url' && typeof inputPayload.content === 'string') {
+      const lower = inputPayload.content.toLowerCase();
+      if (lower.includes('kyc') || lower.includes('secure') || lower.includes('verify') || lower.includes('account') || lower.includes('sbi') || lower.includes('bank') || lower.includes('yono') || lower.includes('update')) {
+        selectedFixture = FIXTURE_MAP.suspicious_kyc.data;
+      } else if (lower.includes('vidyalaxmi') || lower.includes('loan') || lower.includes('scholarship')) {
+        selectedFixture = FIXTURE_MAP.pm_vidyalaxmi.data;
+      } else if (lower.includes('health') || lower.includes('cure') || lower.includes('cancer')) {
+        selectedFixture = FIXTURE_MAP.false_health.data;
+      } else if (lower.includes('laptop') || lower.includes('scheme')) {
+        selectedFixture = FIXTURE_MAP.outdated_gov.data;
+      } else {
+        return buildClientUnconfirmedPayload(inputPayload.content);
       }
     } else if (inputPayload.type === 'audio') {
       selectedFixture = FIXTURE_MAP.false_health.data;
@@ -227,4 +253,53 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
 
     throw err;
   }
+}
+
+/**
+ * Dynamically constructs an schema-compliant UNCONFIRMED payload for arbitrary custom forwards
+ * in Demo Fixtures mode so the application does NOT repeat the canned laptop scheme answer for every query.
+ */
+export function buildClientUnconfirmedPayload(rawText) {
+  const claimText = typeof rawText === 'string' && rawText.trim() ? rawText.trim() : 'Submitted viral forward';
+  return {
+    input: {
+      raw_text: claimText,
+      media_type: 'text',
+      received_at: new Date().toISOString(),
+      source_platform: 'WhatsApp'
+    },
+    claim: claimText.length > 250 ? claimText.slice(0, 250) + '...' : claimText,
+    verdict: 'UNCONFIRMED',
+    confidence: {
+      score: 0.35,
+      rating: 'LOW',
+      rationale: 'No authoritative evidence citations were found in the curated knowledge base to substantiate or refute this custom claim.'
+    },
+    plain_explanation: 'This claim cannot be confirmed based on currently indexed authoritative sources. In Demo Fixtures mode, pre-computed evidence exists for canonical demonstration scenarios. For arbitrary external claims, toggle to Live AI Mode with a connected reasoning engine.',
+    evidence: [],
+    stress_test: {
+      counter_arguments_checked: [
+        'Could this claim represent an unindexed recent event or local development?',
+        'Are there official gazettes or regulatory clarifications addressing this assertion?'
+      ],
+      edge_cases_identified: [
+        'Claims lacking coverage across reputable gazettes and news repositories frequently represent unverified rumors or emerging viral forwards.'
+      ],
+      robustness_summary: 'Strict epistemic constraint applied: claims without grounded evidence cannot be validated and remain unconfirmed.'
+    },
+    truth_timeline: [
+      {
+        date: new Date().toISOString().split('T')[0],
+        event: 'Claim evaluated against curated knowledge base with zero corroboration.',
+        significance: 'Absence of verified evidence prevents factual confirmation.'
+      }
+    ],
+    action_risk: {
+      risk_level: 'MODERATE',
+      risk_category: 'MISINFORMATION',
+      warning_flag: 'UNVERIFIED CLAIM: Do not forward or act upon unconfirmed rumors',
+      recommended_action: 'Do not forward this message until corroborated by official sources or primary regulatory portals.'
+    },
+    mode: 'mock'
+  };
 }

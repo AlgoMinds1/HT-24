@@ -62,7 +62,7 @@ export default function EvidenceTab({ contract }) {
               className={`filter-pill ${activeFilter === 'ALL' ? 'active' : ''}`}
               onClick={() => setActiveFilter('ALL')}
             >
-              All ({counts.all})
+              All <span className="pill-count">{counts.all}</span>
             </button>
             {counts.supporting > 0 && (
               <button
@@ -70,7 +70,8 @@ export default function EvidenceTab({ contract }) {
                 className={`filter-pill ${activeFilter === 'SUPPORTING' ? 'active' : ''}`}
                 onClick={() => setActiveFilter('SUPPORTING')}
               >
-                Supporting ({counts.supporting})
+                <span className="pill-dot dot-supporting" />
+                Supporting <span className="pill-count">{counts.supporting}</span>
               </button>
             )}
             {counts.contradicting > 0 && (
@@ -79,7 +80,8 @@ export default function EvidenceTab({ contract }) {
                 className={`filter-pill ${activeFilter === 'CONTRADICTING' ? 'active' : ''}`}
                 onClick={() => setActiveFilter('CONTRADICTING')}
               >
-                Contradicting ({counts.contradicting})
+                <span className="pill-dot dot-contradicting" />
+                Contradicting <span className="pill-count">{counts.contradicting}</span>
               </button>
             )}
             {counts.contextual > 0 && (
@@ -88,7 +90,8 @@ export default function EvidenceTab({ contract }) {
                 className={`filter-pill ${activeFilter === 'CONTEXTUAL' ? 'active' : ''}`}
                 onClick={() => setActiveFilter('CONTEXTUAL')}
               >
-                Official / Context ({counts.contextual})
+                <span className="pill-dot dot-contextual" />
+                Official / Context <span className="pill-count">{counts.contextual}</span>
               </button>
             )}
           </div>

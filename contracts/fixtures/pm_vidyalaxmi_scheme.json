@@ -1,0 +1,67 @@
+{
+  "input": {
+    "raw_text": "Offers collateral-free and guarantor-free education loans for meritorious students admitted to designated Quality Higher Educational Institutions (QHEIs), featuring a 3% interest subvention for families with an annual income up to ₹8,00,000. Applications are handled online via the PM-Vidyalaxmi Portal.",
+    "media_type": "text",
+    "received_at": "2026-10-10T10:00:00Z",
+    "source_platform": "WhatsApp"
+  },
+  "claim": "Government of India provides collateral-free, guarantor-free education loans with 3% interest subvention for income up to ₹8 Lakh under the PM-Vidyalaxmi Scheme via official portal.",
+  "verdict": "SUPPORTED",
+  "confidence": {
+    "score": 0.98,
+    "rating": "HIGH",
+    "rationale": "Corroborated by official Press Information Bureau (PIB) Cabinet approvals, Department of Higher Education notifications, and the official PM-Vidyalaxmi digital portal."
+  },
+  "plain_explanation": "This forward accurately describes the PM-Vidyalaxmi scheme approved by the Union Cabinet. Under this central sector initiative, meritorious students admitted into designated Quality Higher Educational Institutions (QHEIs) can secure collateral-free, guarantor-free education loans, with a 3% interest subvention provided for families with an annual income up to ₹8,00,000.",
+  "evidence": [
+    {
+      "source_name": "Press Information Bureau (PIB), Government of India",
+      "url": "https://pib.gov.in/PressReleasePage.aspx?PRID=2071239",
+      "published_date": "2024-11-06",
+      "stance": "SUPPORTS",
+      "excerpt": "Cabinet approves PM-Vidyalaxmi scheme to provide financial support to meritorious students for higher education. For students having an annual family income of up to ₹8 lakhs, 3 percent interest subvention will be provided on education loans up to ₹10 lakhs.",
+      "reliability_score": 0.99
+    },
+    {
+      "source_name": "Ministry of Education - Department of Higher Education",
+      "url": "https://pmvidyalaxmi.gov.in",
+      "published_date": "2024-11-08",
+      "stance": "SUPPORTS",
+      "excerpt": "Under the PM-Vidyalaxmi scheme, students admitted to designated top 860 Quality Higher Educational Institutions (QHEIs) are eligible for collateral-free, guarantor-free education loans through a transparent digital portal.",
+      "reliability_score": 0.98
+    }
+  ],
+  "stress_test": {
+    "counter_arguments_checked": [
+      "Is the scheme restricted to specific educational institutions?",
+      "Are all students eligible for the 3% interest subvention regardless of income?"
+    ],
+    "edge_cases_identified": [
+      "The loan is available to students in top NIRF-ranked QHEIs. The 3% interest subvention specifically applies to families with annual gross income up to ₹8 Lakhs and is capped at ₹10 Lakhs loan amount during the moratorium period."
+    ],
+    "robustness_summary": "The claim is fully supported by authoritative government gazette records. Eligible students must apply exclusively through the official digital portal."
+  },
+  "truth_timeline": [
+    {
+      "date": "2024-11-06",
+      "event": "Union Cabinet approved the PM-Vidyalaxmi central sector initiative for higher education financial assistance.",
+      "significance": "Formal policy enactment with budgetary allocation of ₹3,600 crore."
+    },
+    {
+      "date": "2024-11-15",
+      "event": "Ministry of Education launched the unified digital application portal and published list of 860 QHEIs.",
+      "significance": "Operationalized direct digital applications without bank branch intermediaries."
+    },
+    {
+      "date": "2026-10-10",
+      "event": "Current guidelines confirm ongoing active status for higher education loan disbursement.",
+      "significance": "Scheme remains fully active and authoritative."
+    }
+  ],
+  "action_risk": {
+    "risk_level": "LOW",
+    "risk_category": "AUTHENTIC_GOVERNMENT_SCHEME",
+    "warning_flag": null,
+    "recommended_action": "Authentic government scheme. To apply, use exclusively the official portal at pmvidyalaxmi.gov.in. Beware of unverified third-party websites or agents asking for processing fees."
+  }
+}

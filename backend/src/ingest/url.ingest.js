@@ -67,7 +67,7 @@ export function isPrivateOrReservedIp(ip) {
  * Resolves a hostname via DNS and verifies it does not map to a private/reserved IP.
  * 
  * @param {string} hostname
- * @returns {Promise<string>} The resolved safe IP address
+ * @returns {Promise<{ resolvedIp: string|null, isResolvable: boolean, dnsError?: string }>} Safe IP info
  */
 export async function validateHostForSsrf(hostname) {
   // If hostname is directly an IP or localhost
@@ -83,10 +83,11 @@ export async function validateHostForSsrf(hostname) {
       throw ApiError.badRequest(`Destination host resolves to internal/private IP (${resolvedIp}), which is forbidden by SSRF policy.`, 'SSRF_BLOCKED');
     }
 
-    return resolvedIp;
+    return { resolvedIp, isResolvable: true };
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    throw ApiError.badRequest(`Failed to resolve host "${hostname}": ${err.message}`, 'DNS_LOOKUP_FAILED');
+    // Host is an external name that cannot be resolved in DNS (e.g. ENOTFOUND, NXDOMAIN, fake/taken-down domain)
+    return { resolvedIp: null, isResolvable: false, dnsError: err.message };
   }
 }
 
@@ -113,7 +114,30 @@ export async function ingestUrl(rawUrl) {
   }
 
   // SSRF DNS Verification
-  await validateHostForSsrf(parsedUrl.hostname);
+  const hostCheck = await validateHostForSsrf(parsedUrl.hostname);
+
+  // If host cannot be resolved, ingest it as a suspicious unresolvable destination rather than throwing 400
+  if (!hostCheck.isResolvable) {
+    const domainName = parsedUrl.hostname;
+    const isSuspiciousScheme = /secure|account|verify|verification|bank|kyc|login|update|yono|card|otp/i.test(domainName) || /kyc|verify|update|login/i.test(parsedUrl.pathname);
+
+    return createIngestionResult({
+      inputType: 'url',
+      claimText: `Unresolvable external domain "${domainName}" circulating in link forwards${isSuspiciousScheme ? ' claiming to provide account verification/banking services' : ''}. Domain has no valid DNS records or is non-existent.`,
+      language: 'en',
+      entities: [domainName],
+      dateHint: null,
+      extraction: {
+        extractedText: `Target URL: ${parsedUrl.href}\nDNS Resolution Status: Failed (${hostCheck.dnsError})\nDomain Name: ${domainName}\nThreat Pattern: Non-existent or deactivated host commonly indicative of ephemeral smishing/phishing links.`,
+        warnings: [
+          `Destination host "${domainName}" could not be resolved via public DNS (${hostCheck.dnsError}).`,
+          `This domain is either non-existent, unregistered, or has been decommissioned by hosting providers.`
+        ],
+        readability: 'unresolvable',
+        sourceUrl: parsedUrl.href
+      }
+    });
+  }
 
   const warnings = [];
   const controller = new AbortController();
@@ -132,9 +156,34 @@ export async function ingestUrl(rawUrl) {
   } catch (fetchErr) {
     clearTimeout(timeoutTimer);
     if (fetchErr.name === 'AbortError') {
-      throw ApiError.timeout(`Webpage request timed out after ${FETCH_TIMEOUT_MS / 1000} seconds.`, 'URL_TIMEOUT');
+      return createIngestionResult({
+        inputType: 'url',
+        claimText: `Inaccessible or unresponsive web link "${parsedUrl.hostname}". Webpage timed out after ${FETCH_TIMEOUT_MS / 1000} seconds.`,
+        language: 'en',
+        entities: [parsedUrl.hostname],
+        dateHint: null,
+        extraction: {
+          extractedText: `Target URL: ${parsedUrl.href}\nStatus: Connection timed out after ${FETCH_TIMEOUT_MS / 1000}s.`,
+          warnings: [`Webpage request timed out after ${FETCH_TIMEOUT_MS / 1000} seconds.`],
+          readability: 'unreachable',
+          sourceUrl: parsedUrl.href
+        }
+      });
     }
-    throw ApiError.badRequest(`Failed to access webpage: ${fetchErr.message}`, 'URL_FETCH_FAILED');
+
+    return createIngestionResult({
+      inputType: 'url',
+      claimText: `Inaccessible web destination "${parsedUrl.hostname}" (${fetchErr.message}).`,
+      language: 'en',
+      entities: [parsedUrl.hostname],
+      dateHint: null,
+      extraction: {
+        extractedText: `Target URL: ${parsedUrl.href}\nStatus: Inaccessible (${fetchErr.message})`,
+        warnings: [`Failed to connect to web host: ${fetchErr.message}`],
+        readability: 'inaccessible',
+        sourceUrl: parsedUrl.href
+      }
+    });
   } finally {
     clearTimeout(timeoutTimer);
   }
@@ -147,7 +196,19 @@ export async function ingestUrl(rawUrl) {
   }
 
   if (!response.ok) {
-    throw ApiError.badRequest(`Target web server returned HTTP error status ${response.status} (${response.statusText}).`, 'URL_HTTP_ERROR');
+    return createIngestionResult({
+      inputType: 'url',
+      claimText: `Web destination "${parsedUrl.hostname}" returned HTTP ${response.status} (${response.statusText}). Link is inactive or taken down.`,
+      language: 'en',
+      entities: [parsedUrl.hostname],
+      dateHint: null,
+      extraction: {
+        extractedText: `Target URL: ${parsedUrl.href}\nHTTP Status: ${response.status} (${response.statusText})`,
+        warnings: [`Target web server returned HTTP error status ${response.status} (${response.statusText}). Page appears removed or inactive.`],
+        readability: 'inactive',
+        sourceUrl: parsedUrl.href
+      }
+    });
   }
 
   const contentType = response.headers.get('content-type') || '';

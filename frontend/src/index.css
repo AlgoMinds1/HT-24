@@ -50,6 +50,8 @@
   --bg-surface: var(--color-surface);
   --bg-card: var(--color-surface);
   --bg-card-hover: var(--color-paper-light);
+  --bg-primary: var(--color-paper-light);
+  --bg-secondary: var(--color-paper-deep);
   --border: var(--color-border);
   --border-strong: var(--color-border-strong);
   --text-main: var(--color-ink);
@@ -63,14 +65,19 @@
   /* Verdict Aliases */
   --verdict-supported: var(--color-verdict-success);
   --verdict-supported-bg: var(--color-verdict-success-bg);
+  --verdict-supported-border: rgba(66, 105, 75, 0.3);
   --verdict-false: var(--color-verdict-false);
   --verdict-false-bg: var(--color-verdict-false-bg);
+  --verdict-false-border: rgba(169, 68, 56, 0.3);
   --verdict-outdated: var(--color-verdict-warning);
   --verdict-outdated-bg: var(--color-verdict-warning-bg);
+  --verdict-outdated-border: rgba(148, 109, 50, 0.3);
   --verdict-partly: var(--color-verdict-warning);
   --verdict-partly-bg: var(--color-verdict-warning-bg);
+  --verdict-partly-border: rgba(148, 109, 50, 0.3);
   --verdict-unconfirmed: var(--color-verdict-neutral);
   --verdict-unconfirmed-bg: var(--color-verdict-neutral-bg);
+  --verdict-unconfirmed-border: rgba(105, 106, 96, 0.3);
 
   /* Color Aliases to eliminate all blue */
   --color-navy: var(--color-forest);
@@ -92,6 +99,16 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
+
+  /* UI Aliases & Accents */
+  --accent-terracotta: #C2410C;
+  --font-body: var(--font-sans);
+  --font-heading: var(--font-serif);
+  --text-primary: var(--color-ink);
+  --text-secondary: var(--color-ink-secondary);
+  --shadow-sm: var(--shadow-subtle);
+  --shadow-md: var(--shadow-card);
+  --shadow-lg: var(--shadow-dossier);
 }
 
 /* Base Reset & Typography */
@@ -244,23 +261,28 @@ button {
   gap: 1.25rem;
 }
 
-.btn-forest {
+.btn-forest,
+.btn-primary {
   background-color: var(--color-forest);
   color: #FFFFFF;
-  padding: 0.6rem 1.25rem;
+  padding: 0.65rem 1.35rem;
   border-radius: var(--radius-md);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  border: none;
+  cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 2px rgba(37, 40, 32, 0.08);
+  box-shadow: 0 1px 3px rgba(37, 40, 32, 0.1);
 }
-.btn-forest:hover {
+.btn-forest:hover,
+.btn-primary:hover {
   background-color: var(--color-forest-hover);
   color: #FFFFFF;
   transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 40, 32, 0.18);
 }
 
 .btn-secondary-quiet {
