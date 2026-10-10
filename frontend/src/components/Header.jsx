@@ -4,7 +4,9 @@ import {
   LogOut, 
   LayoutDashboard, 
   History, 
-  Settings 
+  Settings,
+  Sparkles,
+  Database
 } from 'lucide-react';
 import { useVerification } from '../context/VerificationContext';
 
@@ -14,7 +16,9 @@ export default function Header() {
     setScreen, 
     user, 
     logout, 
-    historyList = [] 
+    historyList = [],
+    isMockMode,
+    toggleMockMode
   } = useVerification();
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -64,8 +68,30 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Right Actions: Only Sign In (to Login) and Get Started (to Sign Up) */}
+        {/* Right Actions: Mode Switcher, Auth & User Nav */}
         <div className="header-actions">
+          {/* Live AI vs Demo Fixtures Mode Switcher */}
+          <button
+            type="button"
+            className={`mode-toggle-btn ${isMockMode ? 'mock-active' : 'live-active'}`}
+            onClick={toggleMockMode}
+            title={`Currently in ${isMockMode ? 'Demo Fixtures' : 'Live AI'} mode. Click to toggle.`}
+            aria-label={`Toggle verification mode. Currently ${isMockMode ? 'Demo' : 'Live'}.`}
+            style={{ marginRight: '0.25rem' }}
+          >
+            {isMockMode ? (
+              <>
+                <Database size={13} className="mode-toggle-icon" />
+                <span>Mode: <strong>Demo Fixtures</strong></span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={13} className="mode-toggle-icon live-pulse" />
+                <span>Mode: <strong>Live AI</strong></span>
+              </>
+            )}
+          </button>
+
           {user && !user.isGuest ? (
             /* Authenticated User Menu */
             <div style={{ position: 'relative' }}>

@@ -63,10 +63,10 @@ async function callGeminiWithRetry(fn, retries = 3, delayMs = 1500) {
     try {
       return await fn();
     } catch (err) {
-      const isTransient = 
-        err.status === 503 || 
-        err.status === 429 || 
-        err.message?.includes('503') || 
+      const isTransient =
+        err.status === 503 ||
+        err.status === 429 ||
+        err.message?.includes('503') ||
         err.message?.includes('high demand') ||
         err.message?.includes('Resource exhausted') ||
         err.message?.includes('RESOURCE_EXHAUSTED');
@@ -264,7 +264,7 @@ Produce a complete structured JSON verdict report matching this structure:
       // ATTEMPT 2 (RETRY): If Attempt 1 failed schema validation or parsing
       // --------------------------------------------------------------------------
       if (!parsedPayload || !validationResult?.valid) {
-        const errorFeedback = validationResult?.errors 
+        const errorFeedback = validationResult?.errors
           ? JSON.stringify(validationResult.errors, null, 2)
           : 'Output was not valid JSON.';
 
@@ -318,26 +318,20 @@ Please strictly rectify these errors and return pure JSON that passes contracts/
       }
 
     } catch (err) {
-      console.warn(`[Gemini] Model ${modelName} call failed:`, err.message);
-      lastErr = err;
-    }
-  }
+      if (err instanceof ApiError) {
+        throw err;
+      }
 
-  // If all fallback models failed
-  if (lastErr) {
-    if (lastErr instanceof ApiError) {
-      throw lastErr;
+      if (err.status === 400 || err.message?.includes('API_KEY_INVALID') || err.message?.includes('API key not valid') || err.message?.includes('key')) {
+        throw ApiError.badRequest('Invalid Gemini API Key configured on backend. Please provide a valid API key from Google AI Studio (starting with AIzaSy...).', 'INVALID_API_KEY');
+      }
+      if (err.status === 429 || err.message?.includes('RESOURCE_EXHAUSTED')) {
+        throw ApiError.badRequest('Gemini API rate limit exceeded. Please try again shortly.', 'RATE_LIMITED');
+      }
+      throw ApiError.upstreamError(
+        `Verification reasoning service temporarily unavailable: ${lastErr.message || 'Upstream provider error'}`
+      );
     }
-    if (lastErr.status === 400 || lastErr.message?.includes('API_KEY_INVALID') || lastErr.message?.includes('API key not valid')) {
-      throw ApiError.badRequest('Invalid Gemini API Key configured on backend. Please provide a valid API key in backend/.env.', 'INVALID_API_KEY');
-    }
-    if (lastErr.status === 429 || lastErr.message?.includes('RESOURCE_EXHAUSTED') || lastErr.message?.includes('quota')) {
-      throw ApiError.badRequest('AI verification rate limit exceeded. Please try again shortly.', 'RATE_LIMITED');
-    }
-    throw ApiError.upstreamError(
-      `Verification reasoning service temporarily unavailable: ${lastErr.message || 'Upstream provider error'}`
-    );
-  }
 
-  throw ApiError.upstreamError('Model reasoning failed across all configured fallback models.');
-}
+    throw ApiError.upstreamError('Model reasoning failed across all configured fallback models.');
+  }

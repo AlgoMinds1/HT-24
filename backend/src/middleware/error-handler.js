@@ -31,27 +31,29 @@ export function errorHandlerMiddleware(err, req, res, next) {
   }
 
   // Handle known operational ApiErrors
-  if (err instanceof ApiError) {
+  if (err instanceof ApiError || err.name === 'ApiError' || (err.statusCode && err.code)) {
+    const statusCode = err.statusCode || 400;
     const response = {
       error: {
-        code: err.code,
+        code: err.code || 'API_ERROR',
         message: err.message
       }
     };
     if (err.details) {
       response.error.details = err.details;
     }
-    return res.status(err.statusCode).json(response);
+    return res.status(statusCode).json(response);
   }
 
   // Handle unexpected internal errors
   const isDev = env.NODE_ENV === 'development';
   console.error('Unhandled internal error:', err);
 
-  return res.status(500).json({
+  return res.status(err.status || err.statusCode || 500).json({
     error: {
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected internal error occurred while processing the verification request.'
+      code: err.code || 'INTERNAL_SERVER_ERROR',
+      message: err.message || 'An unexpected internal error occurred while processing the verification request.',
+      ...(isDev && err.stack ? { stack: err.stack } : {})
     }
   });
 }

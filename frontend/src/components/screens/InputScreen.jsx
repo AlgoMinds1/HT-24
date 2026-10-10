@@ -13,7 +13,10 @@ import {
   Pause, 
   History,
   Clock,
-  Info
+  Info,
+  AlertTriangle,
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { FIXTURE_MAP } from '../../services/verificationService';
@@ -33,7 +36,11 @@ export default function InputScreen() {
     startVerification,
     historyList = [],
     openPastReport,
-    setScreen
+    setScreen,
+    error,
+    clearError,
+    isMockMode,
+    toggleMockMode
   } = useVerification();
 
   const [dragActive, setDragActive] = useState(false);
@@ -122,6 +129,70 @@ export default function InputScreen() {
 
       {/* Main Studio Card */}
       <div className="studio-main-card">
+        {/* Verification Error Banner */}
+        {error && (
+          <div className="error-alert-banner" role="alert" style={{ marginBottom: '1.5rem' }}>
+            <div className="error-alert-header">
+              <div className="error-alert-title-wrap">
+                <AlertTriangle size={18} className="error-alert-icon" />
+                <span className="error-alert-title">
+                  {error.code ? `Verification Notice [${error.code}]` : 'Verification Notice'}
+                </span>
+              </div>
+              <button 
+                type="button" 
+                className="error-dismiss-btn" 
+                onClick={clearError}
+                aria-label="Dismiss error notice"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <p className="error-alert-message">
+              {typeof error === 'string' ? error : error.message}
+            </p>
+            
+            {Array.isArray(error?.warnings) && error.warnings.length > 0 && (
+              <ul className="error-alert-warnings">
+                {error.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            )}
+
+            <div className="error-alert-actions" style={{ marginTop: '0.85rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-forest"
+                style={{ fontSize: '0.8125rem', padding: '0.45rem 0.95rem' }}
+                onClick={() => {
+                  clearError();
+                  startVerification();
+                }}
+              >
+                <RotateCcw size={13} />
+                <span>Retry Verification</span>
+              </button>
+
+              {!isMockMode && (
+                <button
+                  type="button"
+                  className="btn-secondary-quiet"
+                  style={{ fontSize: '0.8125rem', padding: '0.45rem 0.95rem', background: '#FEF3C7', color: '#92400E', borderColor: '#FCD34D' }}
+                  onClick={() => {
+                    toggleMockMode();
+                    clearError();
+                    setTimeout(() => startVerification(), 50);
+                  }}
+                >
+                  <Sparkles size={13} />
+                  <span>Switch to Demo Fixtures Mode & Run</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         
         {/* Understated Modality Tabs */}
         <div className="tabs-navigation-strip" role="tablist">
