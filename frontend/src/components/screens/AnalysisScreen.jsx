@@ -1,86 +1,151 @@
 import React from 'react';
 import { 
-  FileSearch, 
-  Search, 
-  Scale, 
   CheckCircle2, 
-  Loader2, 
-  ShieldAlert 
+  AlertCircle, 
+  RotateCcw,
+  ArrowLeft,
+  XCircle
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
-import { ANALYSIS_STEPS } from '../../services/verificationService';
+
+const STAGES = [
+  {
+    index: 0,
+    title: '1. Ingesting & Validating Payload',
+    description: 'Verifying MIME signatures, normalizing text/media, and extracting core forward.'
+  },
+  {
+    index: 1,
+    title: '2. Extracting Atomic Claim',
+    description: 'Isolating the core verifiable proposition and identifying temporal markers.'
+  },
+  {
+    index: 2,
+    title: '3. Cross-Referencing Evidence',
+    description: 'Searching authoritative primary sources, fact-checking records, and temporal archives.'
+  },
+  {
+    index: 3,
+    title: '4. Synthesizing Evidence Verdict',
+    description: 'Executing adversarial contradiction checks and action-risk scoring.'
+  }
+];
 
 export default function AnalysisScreen() {
-  const { currentStepIndex } = useVerification();
+  const { 
+    currentStepIndex, 
+    error, 
+    resetVerification, 
+    startVerification,
+    setScreen
+  } = useVerification();
 
-  const getStepIcon = (index, isActive, isCompleted) => {
-    if (isCompleted) {
-      return <CheckCircle2 size={18} />;
-    }
-    if (isActive) {
-      return <Loader2 size={18} className="animate-spin" />;
-    }
-    switch (index) {
-      case 0: return <FileSearch size={16} />;
-      case 1: return <Search size={16} />;
-      case 2: return <Scale size={16} />;
-      case 3: return <ShieldAlert size={16} />;
-      default: return index + 1;
-    }
-  };
+  if (error) {
+    return (
+      <div className="analysis-page-container">
+        <div className="analysis-dossier-card" role="alert" style={{ borderColor: 'var(--color-verdict-false)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-verdict-false-bg)', color: 'var(--color-verdict-false)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+            <AlertCircle size={28} />
+          </div>
+
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.75rem', color: 'var(--color-ink)', marginBottom: '0.75rem' }}>
+            Verification Interrupted
+          </h2>
+          <p style={{ fontSize: '0.92rem', color: 'var(--color-ink-secondary)', marginBottom: '1.5rem', lineHeight: 1.55 }}>
+            {error}
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+            <button
+              type="button"
+              className="btn-forest"
+              onClick={startVerification}
+            >
+              <RotateCcw size={15} /> Retry Verification
+            </button>
+            <button
+              type="button"
+              className="btn-secondary-quiet"
+              onClick={() => setScreen('dashboard')}
+            >
+              <ArrowLeft size={15} /> Return to Studio
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="analysis-container">
-      <div className="glass-card" style={{ padding: '2.5rem' }}>
-        <div className="analysis-radar">
-          <Loader2 size={36} color="var(--accent-cyan)" className="animate-spin" />
+    <div className="analysis-page-container">
+      <div className="analysis-dossier-card">
+        
+        {/* Botanical Pulse Icon */}
+        <div className="analysis-spinner-botanical">
+          <svg viewBox="0 0 32 32" fill="none" style={{ width: '100%', height: '100%' }}>
+            <path d="M16 4C9.5 4 4 9.5 4 16C4 22.5 9.5 28 16 28C22.5 28 28 22.5 28 16C28 9.5 22.5 4 16 4Z" stroke="var(--color-forest)" strokeWidth="2" />
+            <path d="M10 20C11.5 14 16 10 22 10C20.5 16 16 20 10 20Z" fill="var(--color-sage-light)" stroke="var(--color-forest)" strokeWidth="1.5" />
+          </svg>
         </div>
 
-        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', marginBottom: '0.5rem' }}>
-          Verification Pipeline In Progress
+        <span className="section-eyebrow">FORENSIC CLAIM EVALUATION</span>
+        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', color: 'var(--color-ink)', marginBottom: '0.5rem' }}>
+          Examining Evidence Dossier
         </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '520px', margin: '0 auto' }}>
-          TruthLens multi-agent engine is isolating factual assertions, querying gazettes & fact repositories, and evaluating evidence stances.
+        <p style={{ fontSize: '0.9rem', color: 'var(--color-ink-secondary)', maxWidth: '480px', margin: '0 auto 2rem' }}>
+          Grounding assertions in primary source citations and running adversarial contradiction checks.
         </p>
 
-        {/* 4 Pipeline Steps */}
-        <div className="steps-list">
-          {ANALYSIS_STEPS.map((step, idx) => {
-            const isCompleted = idx < currentStepIndex;
-            const isActive = idx === currentStepIndex;
-            const isPending = idx > currentStepIndex;
-
-            let rowClass = 'step-row pending';
-            if (isCompleted) rowClass = 'step-row completed';
-            else if (isActive) rowClass = 'step-row active';
+        {/* 4 Stages Progression */}
+        <div className="analysis-stages-list">
+          {STAGES.map((stage) => {
+            const isCompleted = currentStepIndex > stage.index;
+            const isCurrent = currentStepIndex === stage.index;
 
             return (
-              <div key={step.id} className={rowClass}>
-                <div className="step-indicator">
-                  {getStepIcon(idx, isActive, isCompleted)}
+              <div 
+                key={stage.index} 
+                className={`stage-row ${isCurrent ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                style={{
+                  border: isCurrent ? '1px solid var(--color-forest)' : '1px solid var(--color-border)',
+                  background: isCurrent ? 'var(--color-sage-surface)' : isCompleted ? 'var(--color-paper-light)' : 'transparent'
+                }}
+              >
+                <div style={{ flexShrink: 0 }}>
+                  {isCompleted ? (
+                    <CheckCircle2 size={18} color="var(--color-forest)" />
+                  ) : isCurrent ? (
+                    <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'var(--color-forest)', margin: '2px' }} />
+                  ) : (
+                    <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '1.5px solid var(--color-border-strong)', margin: '2px' }} />
+                  )}
                 </div>
-                <div>
-                  <div className="step-title">{step.title}</div>
-                  <div className="step-desc">{step.description}</div>
+
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: isCurrent ? 600 : 500, color: 'var(--color-ink)' }}>
+                    {stage.title}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--color-ink-muted)' }}>
+                    {stage.description}
+                  </div>
                 </div>
-                {isActive && (
-                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                    Processing...
-                  </span>
-                )}
-                {isCompleted && (
-                  <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--verdict-supported)', fontWeight: 600 }}>
-                    Verified
-                  </span>
-                )}
               </div>
             );
           })}
         </div>
 
-        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          Simulation Mode • Applying strict contract rules (`contracts/verdict.schema.json`)
-        </div>
+        <button
+          type="button"
+          className="btn-secondary-quiet"
+          onClick={() => {
+            resetVerification();
+            setScreen('dashboard');
+          }}
+          style={{ fontSize: '0.8125rem' }}
+        >
+          <XCircle size={14} /> Abort Verification
+        </button>
+
       </div>
     </div>
   );

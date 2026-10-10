@@ -1,56 +1,130 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { verifyForward, FIXTURE_MAP, DEFAULT_USE_MOCK } from '../services/verificationService';
+import { verifyForward, FIXTURE_MAP, USE_MOCK } from '../services/verificationService';
+import { 
+  getSavedVerifications, 
+  saveVerificationToHistory, 
+  removeVerificationFromHistory, 
+  clearAllHistory 
+} from './HistoryStorage';
 
 const VerificationContext = createContext(null);
 
 export function VerificationProvider({ children }) {
-  // Screens: 'landing' | 'input' | 'analysis' | 'result'
-  const [screen, setScreen] = useState('landing'); 
+  // Screens: 'landing' | 'signin' | 'signup' | 'forgot_password' | 'dashboard' | 'analysis' | 'result' | 'history' | 'settings'
+  const [screen, setScreenState] = useState(() => {
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    if (['landing', 'signin', 'signup', 'forgot_password', 'dashboard', 'result', 'history', 'settings'].includes(hash)) {
+      return hash;
+    }
+    return 'landing';
+  });
+
   const [activeTab, setActiveTab] = useState('text'); // 'text' | 'image' | 'audio' | 'pdf' | 'url'
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [resultData, setResultData] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState(null); // { message, code, warnings, canRetry, isConnectionError }
-
-  // Interactive Live / Mock Toggle with persistent storage
-  const [isMockMode, setIsMockModeState] = useState(() => {
-    try {
-      const saved = localStorage.getItem('truthlens_use_mock');
-      if (saved !== null) {
-        return saved === 'true';
-      }
-    } catch {}
-    return DEFAULT_USE_MOCK;
-  });
-
-  const setMockMode = (mode) => {
-    setIsMockModeState(mode);
-    try {
-      localStorage.setItem('truthlens_use_mock', mode ? 'true' : 'false');
-    } catch {}
-  };
-
-  const toggleMockMode = () => {
-    setMockMode(!isMockMode);
-  };
+  const [error, setError] = useState(null);
 
   // Form State
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [urlInput, setUrlInput] = useState('');
   const [activePresetKey, setActivePresetKey] = useState(null);
-  const [lastPayload, setLastPayload] = useState(null);
+
+  // History State
+  const [historyList, setHistoryList] = useState([]);
+
+  // Session / Auth State
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('truthlens_user_session');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return {
+      name: 'Guest Reviewer',
+      email: 'reviewer@truthlens.ai',
+      isGuest: true,
+      role: 'Fact-Checker'
+    };
+  });
+
+  // Sync hash to screen
+  const setScreen = (newScreen) => {
+    setScreenState(newScreen);
+    try {
+      window.location.hash = newScreen === 'landing' ? '' : newScreen;
+    } catch {}
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').toLowerCase();
+      if (hash && hash !== screen) {
+        if (['landing', 'signin', 'signup', 'forgot_password', 'dashboard', 'result', 'history', 'settings'].includes(hash)) {
+          setScreenState(hash);
+        }
+      } else if (!hash && screen !== 'landing') {
+        setScreenState('landing');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [screen]);
+
+  // Load history on initial mount
+  useEffect(() => {
+    setHistoryList(getSavedVerifications());
+  }, []);
+
+  const login = (email, password) => {
+    const sessionUser = {
+      name: email.split('@')[0] || 'Fact-Checker',
+      email: email,
+      isGuest: false,
+      role: 'Staff Fact-Checker'
+    };
+    setUser(sessionUser);
+    try {
+      localStorage.setItem('truthlens_user_session', JSON.stringify(sessionUser));
+    } catch {}
+    setScreen('dashboard');
+  };
+
+  const signup = (name, email, password) => {
+    const sessionUser = {
+      name: name || 'Reviewer',
+      email: email,
+      isGuest: false,
+      role: 'Verified Analyst'
+    };
+    setUser(sessionUser);
+    try {
+      localStorage.setItem('truthlens_user_session', JSON.stringify(sessionUser));
+    } catch {}
+    setScreen('dashboard');
+  };
+
+  const logout = () => {
+    const guestUser = {
+      name: 'Guest Reviewer',
+      email: 'reviewer@truthlens.ai',
+      isGuest: true,
+      role: 'Fact-Checker'
+    };
+    setUser(guestUser);
+    try {
+      localStorage.removeItem('truthlens_user_session');
+    } catch {}
+    setScreen('landing');
+  };
 
   const goToDashboard = () => {
-    setScreen('input');
+    setScreen('dashboard');
   };
 
   const goToLanding = () => {
     setScreen('landing');
-  };
-
-  const clearError = () => {
-    setError(null);
   };
 
   const selectPreset = (fixtureKey, andVerifyDirectly = false) => {
@@ -61,8 +135,7 @@ export function VerificationProvider({ children }) {
     setTextInput(fixture.data.input.raw_text);
     setSelectedFile(null);
     setUrlInput('');
-    setScreen('input');
-    setError(null);
+    setScreen('dashboard');
 
     if (andVerifyDirectly) {
       setTimeout(() => {
@@ -72,7 +145,7 @@ export function VerificationProvider({ children }) {
   };
 
   const resetAll = () => {
-    setScreen('input');
+    setScreen('dashboard');
     setCurrentStepIndex(0);
     setResultData(null);
     setIsAnalyzing(false);
@@ -81,7 +154,6 @@ export function VerificationProvider({ children }) {
     setSelectedFile(null);
     setUrlInput('');
     setActivePresetKey(null);
-    setLastPayload(null);
   };
 
   const handleStartVerificationWithPreset = async (presetKey) => {
@@ -94,26 +166,22 @@ export function VerificationProvider({ children }) {
       type: 'text',
       presetKey: presetKey
     };
-    setLastPayload(payload);
 
     try {
-      const result = await verifyForward(
-        payload, 
-        (stepIdx) => setCurrentStepIndex(stepIdx),
-        { isMockMode }
-      );
+      const result = await verifyForward(payload, (stepIdx) => {
+        setCurrentStepIndex(stepIdx);
+      });
       setResultData(result);
+      
+      // Save to local history
+      const updatedHistory = saveVerificationToHistory(result, 'text');
+      setHistoryList(updatedHistory);
+
       setScreen('result');
     } catch (err) {
       console.error('Verification error:', err);
-      setError({
-        message: err.message || 'An unexpected error occurred during verification.',
-        code: err.code || 'UNKNOWN_ERROR',
-        warnings: err.warnings || [],
-        canRetry: err.canRetry !== false,
-        isConnectionError: Boolean(err.isConnectionError)
-      });
-      setScreen('input');
+      setError(err.message || 'An unexpected error occurred during verification.');
+      setScreen('dashboard');
     } finally {
       setIsAnalyzing(false);
     }
@@ -139,41 +207,43 @@ export function VerificationProvider({ children }) {
       payload.file = selectedFile;
     }
 
-    setLastPayload(payload);
-
     try {
-      const result = await verifyForward(
-        payload, 
-        (stepIdx) => setCurrentStepIndex(stepIdx),
-        { isMockMode }
-      );
+      const result = await verifyForward(payload, (stepIdx) => {
+        setCurrentStepIndex(stepIdx);
+      });
       setResultData(result);
+
+      // Save to local history
+      const updatedHistory = saveVerificationToHistory(result, activeTab);
+      setHistoryList(updatedHistory);
+
       setScreen('result');
     } catch (err) {
       console.error('Verification error:', err);
-      setError({
-        message: err.message || 'An unexpected error occurred during verification.',
-        code: err.code || 'UNKNOWN_ERROR',
-        warnings: err.warnings || [],
-        canRetry: err.canRetry !== false,
-        isConnectionError: Boolean(err.isConnectionError)
-      });
-      setScreen('input');
+      setError(err.message || 'An unexpected error occurred during verification.');
+      setScreen('dashboard');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const retryVerification = () => {
-    if (lastPayload) {
-      if (lastPayload.presetKey) {
-        handleStartVerificationWithPreset(lastPayload.presetKey);
-      } else {
-        handleStartVerification();
-      }
-    } else {
-      handleStartVerification();
-    }
+  // Open an existing historical record
+  const openPastReport = (record) => {
+    if (!record || !record.fullReport) return;
+    setResultData(record.fullReport);
+    setScreen('result');
+  };
+
+  // Delete an item from history
+  const deleteHistoryItem = (id) => {
+    const updated = removeVerificationFromHistory(id);
+    setHistoryList(updated);
+  };
+
+  // Clear all history
+  const clearHistory = () => {
+    const cleared = clearAllHistory();
+    setHistoryList(cleared);
   };
 
   return (
@@ -189,8 +259,6 @@ export function VerificationProvider({ children }) {
         resultData,
         isAnalyzing,
         error,
-        clearError,
-        retryVerification,
         textInput,
         setTextInput,
         selectedFile,
@@ -201,9 +269,17 @@ export function VerificationProvider({ children }) {
         selectPreset,
         startVerification: handleStartVerification,
         resetVerification: resetAll,
-        isMockMode,
-        setMockMode,
-        toggleMockMode
+        isMockMode: USE_MOCK,
+        // Authentication
+        user,
+        login,
+        signup,
+        logout,
+        // History
+        historyList,
+        openPastReport,
+        deleteHistoryItem,
+        clearHistory
       }}
     >
       {children}

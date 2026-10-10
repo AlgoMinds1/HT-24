@@ -10,6 +10,7 @@ import suspiciousKycMessageFixture from '../fixtures/suspicious_kyc_message.json
 
 // Default mock setting based on environment
 export const DEFAULT_USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+export const USE_MOCK = DEFAULT_USE_MOCK;
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const FIXTURE_MAP = {

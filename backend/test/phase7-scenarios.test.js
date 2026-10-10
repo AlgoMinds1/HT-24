@@ -25,7 +25,7 @@ import { ingestUrl } from '../src/ingest/url.ingest.js';
 import { ingestImage } from '../src/ingest/image.ingest.js';
 import { ingestAudio } from '../src/ingest/audio.ingest.js';
 import { ingestPdf } from '../src/ingest/pdf.ingest.js';
-import { buildUnconfirmedPayload } from '../services/gemini.service.js';
+import { buildUnconfirmedPayload } from '../src/services/gemini.service.js';
 import { verificationCache, VerificationCache } from '../src/utils/cache.js';
 import { ApiError } from '../src/utils/api-error.js';
 

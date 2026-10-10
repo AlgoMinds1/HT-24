@@ -12,6 +12,7 @@ import { normalizeVerdictContract } from '../../contracts/verdictContract';
 
 // Import our modular redesigned results components
 import VerificationSummary from '../results/VerificationSummary';
+import InputStrip from '../results/InputStrip';
 import ResultsTabs, { RESULTS_TAB_KEYS } from '../results/ResultsTabs';
 import OverviewTab from '../results/OverviewTab';
 import EvidenceTab from '../results/EvidenceTab';
@@ -125,6 +126,9 @@ export default function ResultScreen() {
         activePresetKey={activePresetKey}
         onSelectPreset={(key) => selectPreset(key, true)}
       />
+
+      {/* 2b. Input & Extracted Claim Strip */}
+      <InputStrip input={input} mode={contract.mode || (isMockMode ? 'mock' : 'live')} />
 
       {/* 3. Horizontal Tab Navigation Bar (4 clean tabs) */}
       <ResultsTabs
