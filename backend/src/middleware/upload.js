@@ -57,6 +57,11 @@ const multerInstance = multer({
  * Translates Multer errors (file size, unexpected fields) into structured ApiErrors.
  */
 export function uploadMiddleware(req, res, next) {
+  // If not multipart/form-data (e.g. application/json text verification), skip multer
+  if (!req.is('multipart/form-data')) {
+    return next();
+  }
+
   const upload = multerInstance.single('file');
   upload(req, res, (err) => {
     if (err) {

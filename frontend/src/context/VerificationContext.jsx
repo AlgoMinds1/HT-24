@@ -25,6 +25,32 @@ export function VerificationProvider({ children }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState(null);
 
+  // Dual-mode state (Live AI vs Demo Fixtures) with localStorage persistence
+  const [isMockMode, setIsMockModeState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('truthlens_use_mock');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch {}
+    return USE_MOCK;
+  });
+
+  const setMockMode = (mode) => {
+    setIsMockModeState(mode);
+    try {
+      localStorage.setItem('truthlens_use_mock', mode ? 'true' : 'false');
+    } catch {}
+  };
+
+  const toggleMockMode = () => {
+    setMockMode(!isMockMode);
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
   // Form State
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
@@ -168,9 +194,11 @@ export function VerificationProvider({ children }) {
     };
 
     try {
-      const result = await verifyForward(payload, (stepIdx) => {
-        setCurrentStepIndex(stepIdx);
-      });
+      const result = await verifyForward(
+        payload, 
+        (stepIdx) => setCurrentStepIndex(stepIdx),
+        { isMockMode }
+      );
       setResultData(result);
       
       // Save to local history
@@ -180,7 +208,12 @@ export function VerificationProvider({ children }) {
       setScreen('result');
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.message || 'An unexpected error occurred during verification.');
+      setError({
+        message: err.message || 'An unexpected error occurred during verification.',
+        code: err.code || 'VERIFICATION_ERROR',
+        warnings: err.warnings || [],
+        canRetry: err.canRetry !== false
+      });
       setScreen('dashboard');
     } finally {
       setIsAnalyzing(false);
@@ -208,9 +241,11 @@ export function VerificationProvider({ children }) {
     }
 
     try {
-      const result = await verifyForward(payload, (stepIdx) => {
-        setCurrentStepIndex(stepIdx);
-      });
+      const result = await verifyForward(
+        payload, 
+        (stepIdx) => setCurrentStepIndex(stepIdx),
+        { isMockMode }
+      );
       setResultData(result);
 
       // Save to local history
@@ -220,7 +255,12 @@ export function VerificationProvider({ children }) {
       setScreen('result');
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.message || 'An unexpected error occurred during verification.');
+      setError({
+        message: err.message || 'An unexpected error occurred during verification.',
+        code: err.code || 'VERIFICATION_ERROR',
+        warnings: err.warnings || [],
+        canRetry: err.canRetry !== false
+      });
       setScreen('dashboard');
     } finally {
       setIsAnalyzing(false);
@@ -259,6 +299,7 @@ export function VerificationProvider({ children }) {
         resultData,
         isAnalyzing,
         error,
+        clearError,
         textInput,
         setTextInput,
         selectedFile,
@@ -269,7 +310,9 @@ export function VerificationProvider({ children }) {
         selectPreset,
         startVerification: handleStartVerification,
         resetVerification: resetAll,
-        isMockMode: USE_MOCK,
+        isMockMode,
+        setMockMode,
+        toggleMockMode,
         // Authentication
         user,
         login,
