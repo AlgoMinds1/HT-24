@@ -73,7 +73,83 @@ export async function ingestAudio(file) {
   let readability = 'clear';
   const warnings = [];
 
-  if (env.hasGeminiKey) {
+  if (env.hasGroqKey) {
+    try {
+      const audioFormData = new FormData();
+      const ext = mime.includes('wav') ? 'wav' : (mime.includes('ogg') ? 'ogg' : (mime.includes('m4a') ? 'm4a' : 'mp3'));
+      const blob = new Blob([file.buffer], { type: mime.startsWith('audio/') ? mime : 'audio/mp3' });
+      audioFormData.append('file', blob, file.originalname || `recording.${ext}`);
+      audioFormData.append('model', env.GROQ_AUDIO_MODEL || 'whisper-large-v3');
+      audioFormData.append('response_format', 'json');
+
+      const whisperRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.GROQ_API_KEY}`
+        },
+        body: audioFormData
+      });
+
+      if (whisperRes.ok) {
+        const whisperData = await whisperRes.json();
+        transcript = (whisperData.text || '').trim();
+
+        if (transcript) {
+          // Analyze transcript with Groq LLM to isolate atomic claim and evaluate clarity
+          const analysisPrompt = `Given the following speech transcript from an audio recording or voice note:
+"""
+${transcript}
+"""
+
+Extract the central factual claim being made and assess readability.
+Return strictly JSON in this format:
+{
+  "claimText": "atomic factual claim statement",
+  "readability": "clear" | "partial" | "unreadable",
+  "warnings": ["warning if ambiguous or incomplete"]
+}`;
+
+          try {
+            const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${env.GROQ_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                model: env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+                messages: [
+                  { role: 'user', content: analysisPrompt }
+                ],
+                response_format: { type: 'json_object' },
+                temperature: 0.1
+              })
+            });
+
+            if (chatRes.ok) {
+              const chatData = await chatRes.json();
+              const parsed = JSON.parse(chatData.choices?.[0]?.message?.content || '{}');
+              claimText = parsed.claimText || transcript.substring(0, 300);
+              readability = parsed.readability || 'clear';
+              if (Array.isArray(parsed.warnings)) warnings.push(...parsed.warnings);
+            } else {
+              claimText = transcript.substring(0, 300);
+            }
+          } catch (chatErr) {
+            console.warn('[Groq Audio] Extraction error:', chatErr.message);
+            claimText = transcript.substring(0, 300);
+          }
+        }
+      } else {
+        const errText = await whisperRes.text();
+        console.warn(`[Groq Audio] Whisper transcription failed (${whisperRes.status}):`, errText);
+      }
+    } catch (groqErr) {
+      console.warn('[Groq Audio] Whisper API error:', groqErr.message);
+    }
+  }
+
+  if (!transcript && !claimText && env.hasGeminiKey) {
     const modelsToTry = (env.GEMINI_FALLBACK_MODELS && env.GEMINI_FALLBACK_MODELS.length > 0)
       ? env.GEMINI_FALLBACK_MODELS
       : [env.GEMINI_MODEL || 'gemini-1.5-flash', 'gemini-1.5-flash'];

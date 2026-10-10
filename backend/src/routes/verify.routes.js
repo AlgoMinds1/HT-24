@@ -58,7 +58,7 @@ router.get('/inspect-evidence', async (req, res, next) => {
 router.get('/test-verify-claim', async (req, res, next) => {
   try {
     const claim = (req.query.claim || 'Eating purple quartz crystals gives humans telepathy').toString();
-    const { verifyTextWithGemini, buildUnconfirmedPayload } = await import('../services/gemini.service.js');
+    const { verifyTextWithGroq, buildUnconfirmedPayload } = await import('../services/groq.service.js');
 
     const { evidence, retrieval_metadata } = await retrieverService.retrieveEvidence(claim);
 
@@ -66,7 +66,7 @@ router.get('/test-verify-claim', async (req, res, next) => {
     if (!evidence || evidence.length === 0) {
       verdictPayload = buildUnconfirmedPayload(claim, retrieval_metadata);
     } else {
-      verdictPayload = await verifyTextWithGemini(claim, evidence);
+      verdictPayload = await verifyTextWithGroq(claim, evidence);
     }
 
     verdictPayload.mode = 'live';

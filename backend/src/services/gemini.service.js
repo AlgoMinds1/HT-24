@@ -148,6 +148,11 @@ export function buildUnconfirmedPayload(claimText, retrievalMetadata = {}) {
  * @returns {Promise<Object>} Verified verdict payload conforming to verdict.schema.json
  */
 export async function verifyTextWithGemini(textClaim, verifiedEvidence = []) {
+  if (env.hasGroqKey) {
+    const { verifyTextWithGroq } = await import('./groq.service.js');
+    return verifyTextWithGroq(textClaim, verifiedEvidence);
+  }
+
   if (!env.hasGeminiKey) {
     console.warn('[Gemini] GEMINI_API_KEY is not configured or placeholder. Using grounded retrieval synthesis.');
     return synthesizeFallbackVerdict(textClaim, verifiedEvidence);

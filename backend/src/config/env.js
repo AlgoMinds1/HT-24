@@ -28,6 +28,17 @@ export function getEnvConfig() {
     'gemini-2.5-flash'
   ].filter((m, i, arr) => arr.indexOf(m) === i);
 
+  const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+  const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const GROQ_FALLBACK_MODELS = [
+    GROQ_MODEL,
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'mixtral-8x7b-32768'
+  ].filter((m, i, arr) => arr.indexOf(m) === i);
+  const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'llama-3.2-11b-vision-preview';
+  const GROQ_AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3';
+
   // Do not fail startup if running in mock/offline test environments unless explicitly required
   return {
     PORT,
@@ -37,7 +48,13 @@ export function getEnvConfig() {
     GEMINI_API_KEY,
     GEMINI_MODEL,
     GEMINI_FALLBACK_MODELS,
-    hasGeminiKey: Boolean(GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here')
+    hasGeminiKey: Boolean(GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here'),
+    GROQ_API_KEY,
+    GROQ_MODEL,
+    GROQ_FALLBACK_MODELS,
+    GROQ_VISION_MODEL,
+    GROQ_AUDIO_MODEL,
+    hasGroqKey: Boolean(GROQ_API_KEY && GROQ_API_KEY !== 'your_groq_api_key_here' && GROQ_API_KEY.trim().length > 0)
   };
 }
 

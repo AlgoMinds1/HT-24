@@ -1,6 +1,6 @@
 import { validateVerificationRequest } from '../validators/input.validator.js';
 import { ingestInput } from '../ingest/index.js';
-import { verifyTextWithGemini, buildUnconfirmedPayload } from '../services/gemini.service.js';
+import { verifyTextWithGroq, buildUnconfirmedPayload } from '../services/groq.service.js';
 import { retrieverService } from '../retrieval/retriever.service.js';
 import { verificationCache, VerificationCache } from '../utils/cache.js';
 
@@ -61,7 +61,7 @@ export async function handleVerifyClaim(req, res, next) {
     if (!evidence || evidence.length === 0) {
       verdictPayload = buildUnconfirmedPayload(claimText, retrieval_metadata);
     } else {
-      verdictPayload = await verifyTextWithGemini(claimText, evidence);
+      verdictPayload = await verifyTextWithGroq(claimText, evidence);
     }
 
     // 6. Enrich verdict with multimodal input metadata and extraction artifacts

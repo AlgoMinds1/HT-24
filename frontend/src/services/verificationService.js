@@ -47,7 +47,7 @@ export const FIXTURE_MAP = {
 
 export const ANALYSIS_STEPS = [
   { id: 1, title: 'Extracting claim', description: 'Isolating atomic factual statement from unstructured forward.' },
-  { id: 2, title: 'Synthesizing knowledge', description: 'Querying Gemini reasoning engine and verifying factual plausibility.' },
+  { id: 2, title: 'Synthesizing knowledge', description: 'Querying Groq reasoning engine and verifying factual plausibility.' },
   { id: 3, title: 'Adversarial stress-test', description: 'Evaluating counter-hypotheses, edge cases, and exploitation risk.' },
   { id: 4, title: 'Finalizing verdict', description: 'Synthesizing confidence score, plain explanation, and safety actions.' }
 ];
@@ -218,6 +218,11 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
           errorMessage = errorJson.message;
         }
       } catch {}
+
+      if ((response.status === 500 || response.status === 502 || response.status === 503) && (!errorCode || errorCode === 'SERVER_ERROR')) {
+        errorMessage = 'TruthLens backend service (port 8000) is stopped. Please run "npm run dev:backend" in your terminal, or switch to Demo Fixtures mode.';
+        errorCode = 'BACKEND_OFFLINE';
+      }
 
       const err = new Error(errorMessage);
       err.code = errorCode;

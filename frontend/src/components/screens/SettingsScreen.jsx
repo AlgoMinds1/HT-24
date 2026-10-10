@@ -131,9 +131,9 @@ export default function SettingsScreen() {
             </div>
 
             <div style={{ padding: '0.85rem', background: 'var(--color-paper-light)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-ink-muted)' }}>GEMINI ENGINE</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-ink-muted)' }}>INTELLIGENCE ENGINE</div>
               <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: '2px' }}>
-                {backendHealth.details?.geminiConfigured ? 'Connected' : 'Fixture Fallback'}
+                {backendHealth.details?.engine || (backendHealth.details?.groqConfigured ? 'Groq (Llama 3.3)' : 'Fixture Fallback')}
               </div>
             </div>
           </div>

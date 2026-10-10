@@ -9,8 +9,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 TruthLens Backend Service active on port ${PORT} (0.0.0.0)`);
   console.log(`   Environment: ${env.NODE_ENV}`);
   console.log(`   Allowed Origin: ${env.FRONTEND_ORIGIN}`);
-  console.log(`   Gemini Model: ${env.GEMINI_MODEL}`);
-  console.log(`   Gemini Key Configured: ${env.hasGeminiKey ? 'YES' : 'NO (Required for live queries)'}`);
+  console.log(`   Primary Engine: ${env.hasGroqKey ? 'Groq (' + env.GROQ_MODEL + ')' : (env.hasGeminiKey ? 'Gemini (' + env.GEMINI_MODEL + ')' : 'Grounded Fallback Engine')}`);
+  console.log(`   Groq Key Configured: ${env.hasGroqKey ? 'YES' : 'NO'}`);
+  console.log(`   Gemini Key Configured: ${env.hasGeminiKey ? 'YES' : 'NO'}`);
   console.log(`   Health Check: http://localhost:${PORT}/api/health`);
   console.log('================================================================');
 });
