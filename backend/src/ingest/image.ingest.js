@@ -57,16 +57,12 @@ export async function ingestImage(file) {
   const warnings = [];
 
   if (env.hasGeminiKey) {
-    try {
-      const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-      const model = client.getGenerativeModel({ 
-        model: env.GEMINI_MODEL,
-        generationConfig: {
-          responseMimeType: 'application/json'
-        }
-      });
+    const modelsToTry = (env.GEMINI_FALLBACK_MODELS && env.GEMINI_FALLBACK_MODELS.length > 0)
+      ? env.GEMINI_FALLBACK_MODELS
+      : [env.GEMINI_MODEL || 'gemini-1.5-flash', 'gemini-1.5-flash'];
 
-      const prompt = `Analyze this image (which may be a screenshot of a forwarded message, social media post, or graphic):
+    const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+    const prompt = `Analyze this image (which may be a screenshot of a forwarded message, social media post, or graphic):
 1. Extract any visible text completely via OCR (prioritize message bubbles and headlines over background UI chrome).
 2. Identify the central factual claim being made.
 3. Note if the image is blurry, cropped, low-resolution, or partially legible.
@@ -79,46 +75,67 @@ Return JSON in this format:
   "warnings": ["warning 1 if blurry or cropped"]
 }`;
 
-      const imagePart = {
-        inlineData: {
-          data: file.buffer.toString('base64'),
-          mimeType: mime
-        }
-      };
-
-      // Call Gemini vision with transient retry
-      let result = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          result = await model.generateContent([prompt, imagePart]);
-          break;
-        } catch (callErr) {
-          const isTransient = callErr.status === 503 || callErr.status === 429 || callErr.message?.includes('503') || callErr.message?.includes('high demand');
-          if (isTransient && attempt < 3) {
-            console.warn(`[Gemini Vision] Transient error (${callErr.message}). Retrying in 1500ms...`);
-            await new Promise(r => setTimeout(r, 1500));
-            continue;
-          }
-          throw callErr;
-        }
+    const imagePart = {
+      inlineData: {
+        data: file.buffer.toString('base64'),
+        mimeType: mime
       }
+    };
 
-      const rawText = result.response.text();
-      const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    let ocrSucceeded = false;
 
+    for (const modelName of modelsToTry) {
+      if (ocrSucceeded) break;
       try {
-        const parsed = JSON.parse(cleaned);
-        extractedText = parsed.extractedText || '';
-        claimText = parsed.claimText || '';
-        readability = parsed.readability || 'clear';
-        if (Array.isArray(parsed.warnings)) warnings.push(...parsed.warnings);
-      } catch {
-        extractedText = cleaned;
-        claimText = cleaned.substring(0, 300);
+        const model = client.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json'
+          }
+        });
+
+        // Try model with transient retry
+        let result = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            result = await model.generateContent([prompt, imagePart]);
+            break;
+          } catch (callErr) {
+            const isTransient = callErr.status === 503 || callErr.status === 429 || 
+              callErr.message?.includes('503') || callErr.message?.includes('429') ||
+              callErr.message?.includes('quota') || callErr.message?.includes('high demand');
+            if (isTransient && attempt < 2) {
+              await new Promise(r => setTimeout(r, 1000));
+              continue;
+            }
+            throw callErr;
+          }
+        }
+
+        if (result && result.response) {
+          const rawText = result.response.text();
+          const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+          try {
+            const parsed = JSON.parse(cleaned);
+            extractedText = parsed.extractedText || '';
+            claimText = parsed.claimText || '';
+            readability = parsed.readability || 'clear';
+            if (Array.isArray(parsed.warnings)) warnings.push(...parsed.warnings);
+          } catch {
+            extractedText = cleaned;
+            claimText = cleaned.substring(0, 300);
+          }
+          ocrSucceeded = true;
+          break;
+        }
+      } catch (err) {
+        console.warn(`[Gemini Vision] Model ${modelName} encountered error:`, err.message);
       }
-    } catch (err) {
-      console.warn('Gemini vision OCR error:', err.message);
-      warnings.push(`Image OCR processing notice: ${err.message}`);
+    }
+
+    if (!ocrSucceeded) {
+      warnings.push('Multimodal OCR service could not process this image due to provider rate limits. Please re-upload a clear image or enter the claim directly.');
     }
   }
 

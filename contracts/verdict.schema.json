@@ -186,6 +186,27 @@
           "description": "Specific safety steps the user should follow immediately"
         }
       }
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["live", "mock"],
+      "description": "Execution mode of the verification pipeline"
+    },
+    "cached": {
+      "type": "boolean",
+      "description": "Whether the verdict was served from deterministic cache"
+    },
+    "cache_hit": {
+      "type": "boolean",
+      "description": "Whether the verdict resulted in a memory cache hit"
+    },
+    "extraction": {
+      "type": "object",
+      "description": "Multimodal ingestion extraction metadata and caveats"
+    },
+    "retrieval_metadata": {
+      "type": "object",
+      "description": "Evidence retrieval provider status reports and counts"
     }
   }
 }

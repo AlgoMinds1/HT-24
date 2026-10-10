@@ -149,14 +149,9 @@ export function buildUnconfirmedPayload(claimText, retrievalMetadata = {}) {
  */
 export async function verifyTextWithGemini(textClaim, verifiedEvidence = []) {
   const client = getClient();
-  const model = client.getGenerativeModel({
-    model: env.GEMINI_MODEL,
-    systemInstruction: SYSTEM_INSTRUCTION,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.2
-    }
-  });
+  const modelsToTry = (env.GEMINI_FALLBACK_MODELS && env.GEMINI_FALLBACK_MODELS.length > 0)
+    ? env.GEMINI_FALLBACK_MODELS
+    : [env.GEMINI_MODEL || 'gemini-1.5-flash', 'gemini-1.5-flash'];
 
   const formattedEvidencePrompt = verifiedEvidence.length > 0
     ? verifiedEvidence.map((e, idx) => `[Evidence Citation ${idx + 1}]
@@ -212,59 +207,70 @@ Produce a complete structured JSON verdict report matching this structure:
 
   let parsedPayload = null;
   let validationResult = null;
+  let lastErr = null;
 
-  try {
-    // --------------------------------------------------------------------------
-    // ATTEMPT 1: Primary Gemini Generation
-    // --------------------------------------------------------------------------
-    const response1 = await callGeminiWithRetry(() => model.generateContent(basePrompt));
-    const responseText1 = response1.response.text();
-    const cleanedText1 = cleanJsonText(responseText1);
-
+  for (const modelName of modelsToTry) {
     try {
-      parsedPayload = JSON.parse(cleanedText1);
-    } catch (parseErr) {
-      console.warn('Gemini Attempt 1 output could not be parsed as JSON:', parseErr.message);
-    }
+      const model = client.getGenerativeModel({
+        model: modelName,
+        systemInstruction: SYSTEM_INSTRUCTION,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2
+        }
+      });
 
-    if (parsedPayload) {
-      if (!parsedPayload.input) {
-        parsedPayload.input = {
-          raw_text: textClaim,
-          media_type: 'text',
-          received_at: new Date().toISOString(),
-          source_platform: 'Web Forward'
-        };
+      // --------------------------------------------------------------------------
+      // ATTEMPT 1: Primary Gemini Generation
+      // --------------------------------------------------------------------------
+      const response1 = await callGeminiWithRetry(() => model.generateContent(basePrompt));
+      const responseText1 = response1.response.text();
+      const cleanedText1 = cleanJsonText(responseText1);
+
+      try {
+        parsedPayload = JSON.parse(cleanedText1);
+      } catch (parseErr) {
+        console.warn(`[Gemini] ${modelName} Attempt 1 output could not be parsed as JSON:`, parseErr.message);
       }
 
-      // Strictly map verified evidence items to ensure zero hallucination
-      if (verifiedEvidence.length > 0) {
-        parsedPayload.evidence = verifiedEvidence.map(e => ({
-          source_name: e.source_name,
-          url: e.url,
-          published_date: e.published_date || undefined,
-          stance: e.stance,
-          excerpt: e.excerpt,
-          reliability_score: e.reliability_score
-        }));
-      } else {
-        parsedPayload.evidence = [];
+      if (parsedPayload) {
+        if (!parsedPayload.input) {
+          parsedPayload.input = {
+            raw_text: textClaim,
+            media_type: 'text',
+            received_at: new Date().toISOString(),
+            source_platform: 'Web Forward'
+          };
+        }
+
+        // Strictly map verified evidence items to ensure zero hallucination
+        if (verifiedEvidence.length > 0) {
+          parsedPayload.evidence = verifiedEvidence.map(e => ({
+            source_name: e.source_name,
+            url: e.url,
+            published_date: e.published_date || undefined,
+            stance: e.stance,
+            excerpt: e.excerpt,
+            reliability_score: e.reliability_score
+          }));
+        } else {
+          parsedPayload.evidence = [];
+        }
+
+        validationResult = validateVerdictPayload(parsedPayload);
       }
 
-      validationResult = validateVerdictPayload(parsedPayload);
-    }
+      // --------------------------------------------------------------------------
+      // ATTEMPT 2 (RETRY): If Attempt 1 failed schema validation or parsing
+      // --------------------------------------------------------------------------
+      if (!parsedPayload || !validationResult?.valid) {
+        const errorFeedback = validationResult?.errors 
+          ? JSON.stringify(validationResult.errors, null, 2)
+          : 'Output was not valid JSON.';
 
-    // --------------------------------------------------------------------------
-    // ATTEMPT 2 (RETRY): If Attempt 1 failed schema validation or parsing
-    // --------------------------------------------------------------------------
-    if (!parsedPayload || !validationResult?.valid) {
-      const errorFeedback = validationResult?.errors 
-        ? JSON.stringify(validationResult.errors, null, 2)
-        : 'Output was not valid JSON.';
+        console.warn(`[Gemini] ${modelName} Attempt 1 failed schema validation. Retrying once with corrective prompt...`);
 
-      console.warn('Attempt 1 failed schema validation. Retrying once with corrective prompt...');
-
-      const retryPrompt = `${basePrompt}
+        const retryPrompt = `${basePrompt}
 
 CRITICAL CORRECTION INSTRUCTION:
 Your previous output failed JSON Schema validation with the following errors:
@@ -272,62 +278,66 @@ ${errorFeedback}
 
 Please strictly rectify these errors and return pure JSON that passes contracts/verdict.schema.json without any surrounding text.`;
 
-      const response2 = await callGeminiWithRetry(() => model.generateContent(retryPrompt));
-      const responseText2 = response2.response.text();
-      const cleanedText2 = cleanJsonText(responseText2);
+        const response2 = await callGeminiWithRetry(() => model.generateContent(retryPrompt));
+        const responseText2 = response2.response.text();
+        const cleanedText2 = cleanJsonText(responseText2);
 
-      parsedPayload = JSON.parse(cleanedText2);
-      if (!parsedPayload.input) {
-        parsedPayload.input = {
-          raw_text: textClaim,
-          media_type: 'text',
-          received_at: new Date().toISOString(),
-          source_platform: 'Web Forward'
-        };
+        parsedPayload = JSON.parse(cleanedText2);
+        if (!parsedPayload.input) {
+          parsedPayload.input = {
+            raw_text: textClaim,
+            media_type: 'text',
+            received_at: new Date().toISOString(),
+            source_platform: 'Web Forward'
+          };
+        }
+
+        if (verifiedEvidence.length > 0) {
+          parsedPayload.evidence = verifiedEvidence.map(e => ({
+            source_name: e.source_name,
+            url: e.url,
+            published_date: e.published_date || undefined,
+            stance: e.stance,
+            excerpt: e.excerpt,
+            reliability_score: e.reliability_score
+          }));
+        } else {
+          parsedPayload.evidence = [];
+        }
+
+        validationResult = validateVerdictPayload(parsedPayload);
+
+        if (!validationResult.valid) {
+          console.error(`[Gemini] ${modelName} Attempt 2 also failed schema validation:`, validationResult.errors);
+          continue; // Try next model in fallback list
+        }
       }
 
-      if (verifiedEvidence.length > 0) {
-        parsedPayload.evidence = verifiedEvidence.map(e => ({
-          source_name: e.source_name,
-          url: e.url,
-          published_date: e.published_date || undefined,
-          stance: e.stance,
-          excerpt: e.excerpt,
-          reliability_score: e.reliability_score
-        }));
-      } else {
-        parsedPayload.evidence = [];
+      if (parsedPayload && validationResult?.valid) {
+        return parsedPayload;
       }
 
-      validationResult = validateVerdictPayload(parsedPayload);
-
-      if (!validationResult.valid) {
-        console.error('Gemini Attempt 2 also failed schema validation:', validationResult.errors);
-        throw ApiError.upstreamError(
-          'Model output failed schema validation requirements after self-correction retry.',
-          'INVALID_MODEL_OUTPUT',
-          validationResult.errors
-        );
-      }
+    } catch (err) {
+      console.warn(`[Gemini] Model ${modelName} call failed:`, err.message);
+      lastErr = err;
     }
+  }
 
-    return parsedPayload;
-
-  } catch (err) {
-    if (err instanceof ApiError) {
-      throw err;
+  // If all fallback models failed
+  if (lastErr) {
+    if (lastErr instanceof ApiError) {
+      throw lastErr;
     }
-
-    if (err.status === 400 || err.message?.includes('API_KEY_INVALID') || err.message?.includes('API key not valid') || err.message?.includes('key')) {
-      throw ApiError.badRequest('Invalid Gemini API Key configured on backend. Please provide a valid API key from Google AI Studio (starting with AIzaSy...).', 'INVALID_API_KEY');
+    if (lastErr.status === 400 || lastErr.message?.includes('API_KEY_INVALID') || lastErr.message?.includes('API key not valid')) {
+      throw ApiError.badRequest('Invalid Gemini API Key configured on backend. Please provide a valid API key in backend/.env.', 'INVALID_API_KEY');
     }
-    if (err.status === 429 || err.message?.includes('RESOURCE_EXHAUSTED')) {
-      throw ApiError.badRequest('Gemini API rate limit exceeded. Please try again shortly.', 'RATE_LIMITED');
+    if (lastErr.status === 429 || lastErr.message?.includes('RESOURCE_EXHAUSTED') || lastErr.message?.includes('quota')) {
+      throw ApiError.badRequest('AI verification rate limit exceeded. Please try again shortly.', 'RATE_LIMITED');
     }
-
-    console.error('Gemini Service Error:', err.message);
     throw ApiError.upstreamError(
-      `Gemini reasoning service failed: ${err.message || 'Unknown upstream provider error'}`
+      `Verification reasoning service temporarily unavailable: ${lastErr.message || 'Upstream provider error'}`
     );
   }
+
+  throw ApiError.upstreamError('Model reasoning failed across all configured fallback models.');
 }

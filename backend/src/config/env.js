@@ -19,7 +19,14 @@ export function getEnvConfig() {
   const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
   const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '90000', 10);
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+  const GEMINI_FALLBACK_MODELS = [
+    GEMINI_MODEL,
+    'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-flash'
+  ].filter((m, i, arr) => arr.indexOf(m) === i);
 
   // Do not fail startup if running in mock/offline test environments unless explicitly required
   return {
@@ -29,6 +36,7 @@ export function getEnvConfig() {
     REQUEST_TIMEOUT_MS,
     GEMINI_API_KEY,
     GEMINI_MODEL,
+    GEMINI_FALLBACK_MODELS,
     hasGeminiKey: Boolean(GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here')
   };
 }

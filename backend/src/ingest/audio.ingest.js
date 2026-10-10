@@ -74,11 +74,12 @@ export async function ingestAudio(file) {
   const warnings = [];
 
   if (env.hasGeminiKey) {
-    try {
-      const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-      const model = client.getGenerativeModel({ model: env.GEMINI_MODEL });
+    const modelsToTry = (env.GEMINI_FALLBACK_MODELS && env.GEMINI_FALLBACK_MODELS.length > 0)
+      ? env.GEMINI_FALLBACK_MODELS
+      : [env.GEMINI_MODEL || 'gemini-1.5-flash', 'gemini-1.5-flash'];
 
-      const prompt = `Listen to this audio recording (which may be a WhatsApp voice note, forwarded audio advisory, or recorded message):
+    const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+    const prompt = `Listen to this audio recording (which may be a WhatsApp voice note, forwarded audio advisory, or recorded message):
 1. Transcribe the spoken speech verbatim.
 2. Identify the central factual claim or advisory being asserted.
 3. Note any audio issues like background noise, clipping, or unintelligible words.
@@ -91,31 +92,42 @@ Return JSON in this format:
   "warnings": ["warning 1 if noisy or clipping"]
 }`;
 
-      // Gemini audio inline part
-      const audioPart = {
-        inlineData: {
-          data: file.buffer.toString('base64'),
-          mimeType: mime.startsWith('audio/') ? mime : 'audio/mp3'
-        }
-      };
-
-      const result = await model.generateContent([prompt, audioPart]);
-      const rawText = result.response.text();
-      const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-      try {
-        const parsed = JSON.parse(cleaned);
-        transcript = parsed.transcript || '';
-        claimText = parsed.claimText || '';
-        readability = parsed.readability || 'clear';
-        if (Array.isArray(parsed.warnings)) warnings.push(...parsed.warnings);
-      } catch {
-        transcript = cleaned;
-        claimText = cleaned.substring(0, 300);
+    const audioPart = {
+      inlineData: {
+        data: file.buffer.toString('base64'),
+        mimeType: mime.startsWith('audio/') ? mime : 'audio/mp3'
       }
-    } catch (err) {
-      console.warn('Gemini audio transcription error:', err.message);
-      warnings.push(`Audio transcription processing notice: ${err.message}`);
+    };
+
+    let audioSucceeded = false;
+
+    for (const modelName of modelsToTry) {
+      if (audioSucceeded) break;
+      try {
+        const model = client.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([prompt, audioPart]);
+        const rawText = result.response.text();
+        const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        try {
+          const parsed = JSON.parse(cleaned);
+          transcript = parsed.transcript || '';
+          claimText = parsed.claimText || '';
+          readability = parsed.readability || 'clear';
+          if (Array.isArray(parsed.warnings)) warnings.push(...parsed.warnings);
+        } catch {
+          transcript = cleaned;
+          claimText = cleaned.substring(0, 300);
+        }
+        audioSucceeded = true;
+        break;
+      } catch (err) {
+        console.warn(`[Gemini Audio] Model ${modelName} error:`, err.message);
+      }
+    }
+
+    if (!audioSucceeded) {
+      warnings.push('Audio transcription service could not process this recording due to provider capacity. Please enter the claim directly.');
     }
   }
 

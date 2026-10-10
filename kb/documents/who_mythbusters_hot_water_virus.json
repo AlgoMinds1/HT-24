@@ -1,0 +1,11 @@
+{
+  "id": "kb-health-003",
+  "title": "World Health Organization: Fact Sheet on Water Consumption, Body Temperature, and Viral Infections",
+  "source_name": "World Health Organization (WHO) Mythbusters",
+  "url": "https://www.who.int/emergencies/diseases/novel-coronavirus-2019/advice-for-public/myth-busters",
+  "published_date": "2023-04-12",
+  "trust_tier": "TIER_1_AUTHORITATIVE_ORG",
+  "domain": "who.int",
+  "tags": ["who", "mythbusters", "health", "hot water", "drinking water", "virus", "kill virus", "cure"],
+  "content": "Drinking hot water or frequently sipping warm water does not kill viruses or cure viral respiratory infections. While staying hydrated is beneficial for overall wellness, drinking water cannot flush viruses from the respiratory tract or kill them in the stomach. The World Health Organization confirms that viral pathogens replicate inside mucosal epithelial cells, and normal drinking water temperatures cannot neutralize viral loads without causing bodily thermal burns. Medical consensus refutes the claim that drinking water every 15 or 30 minutes eliminates viruses."
+}

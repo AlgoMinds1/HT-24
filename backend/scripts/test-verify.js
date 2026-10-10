@@ -73,10 +73,10 @@ async function runTests() {
   }
 
   // ----------------------------------------------------------------------------
-  // SUITE 2: Validation of Unsupported Input Types
+  // SUITE 2: Validation of Unsupported Input Types & Missing Files
   // ----------------------------------------------------------------------------
-  console.log('\n▶ Test Suite 2: Rejection of Unsupported Input Types (Phase 3 Text-Only)');
-  const unsupportedTypes = ['image', 'audio', 'pdf', 'url'];
+  console.log('\n▶ Test Suite 2: Rejection of Unsupported Input Types');
+  const unsupportedTypes = ['video', 'archive', 'executable', 'unknown'];
 
   for (const type of unsupportedTypes) {
     try {
@@ -86,10 +86,26 @@ async function runTests() {
         body: JSON.stringify({ inputType: type, content: 'sample-attachment.dat' })
       });
       const data = await res.json();
-      logResult(res.status === 415, `Rejected inputType="${type}" with HTTP 415 Unsupported Media Type`);
+      logResult(res.status === 415, `Rejected unsupported inputType="${type}" with HTTP 415 Unsupported Media Type`);
       logResult(data.error?.code === 'UNSUPPORTED_INPUT_TYPE', `Error code is UNSUPPORTED_INPUT_TYPE for ${type}`);
     } catch (err) {
       logResult(false, `Request for type ${type} failed: ${err.message}`);
+    }
+  }
+
+  // Missing attachment file checks for supported media formats
+  for (const mediaType of ['image', 'audio', 'pdf']) {
+    try {
+      const res = await fetch(`${BASE_URL}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputType: mediaType })
+      });
+      const data = await res.json();
+      logResult(res.status === 400, `Rejected ${mediaType} without attachment with HTTP 400 Bad Request`);
+      logResult(data.error?.code === `MISSING_${mediaType.toUpperCase()}_FILE`, `Error code is MISSING_${mediaType.toUpperCase()}_FILE`);
+    } catch (err) {
+      logResult(false, `Request for ${mediaType} without file failed: ${err.message}`);
     }
   }
 
@@ -148,7 +164,7 @@ async function runTests() {
           }
 
           logResult(Array.isArray(data.evidence), 'Evidence is an array');
-          logResult(data.evidence.length === 0, 'Evidence does not hallucinate fake citations (length = 0)');
+          logResult(data.evidence.every(e => Boolean(e.source_name && e.url && e.stance && e.excerpt)), 'Retrieved evidence citations strictly retain source, url, stance, and excerpt');
           logResult(data.verdict && typeof data.verdict === 'string', `Verdict status is [${data.verdict}]`);
           logResult(data.action_risk && data.action_risk.risk_level, `Action risk assessed as [${data.action_risk?.risk_level}]`);
         } else {
