@@ -110,6 +110,11 @@ export default function ResultScreen() {
           <span>
             <strong>Live AI Verification Active:</strong> Grounded against local knowledge base & verified fact-check registries.
           </span>
+          {resultData?.cached && (
+            <span className="compact-mock-tag" style={{ marginLeft: 'auto', background: 'rgba(217, 119, 6, 0.15)', color: '#D97706', border: '1px solid rgba(217, 119, 6, 0.3)' }}>
+              ⚡ Cached Replay
+            </span>
+          )}
         </div>
       )}
 

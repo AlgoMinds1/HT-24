@@ -4619,3 +4619,180 @@ body {
   background: rgba(190, 175, 155, 0.2);
 }
 
+/* ============================================================================
+   Phase 7: Live Demo Dependability & Failure Recovery Styles
+   ============================================================================ */
+
+/* Interactive Mode Switcher in Header */
+.mode-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.mode-toggle-btn.live-active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #065F46;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.mode-toggle-btn.live-active:hover {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.mode-toggle-btn.mock-active {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400E;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.mode-toggle-btn.mock-active:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.live-pulse {
+  animation: pulse-gemini 2s infinite ease-in-out;
+}
+
+@keyframes pulse-gemini {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+    color: #059669;
+  }
+}
+
+/* Error Alert Banner */
+.error-alert-banner {
+  background: #FFF5F5;
+  border: 1px solid #FEB2B2;
+  border-left: 4px solid #E53E3E;
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 8px rgba(229, 62, 62, 0.08);
+  animation: slideDownFade 0.25s ease;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.error-alert-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.error-alert-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-alert-icon {
+  color: #E53E3E;
+  flex-shrink: 0;
+}
+
+.error-alert-title {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #9B2C2C;
+}
+
+.error-dismiss-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #A0AEC0;
+  padding: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.error-dismiss-btn:hover {
+  color: #4A5568;
+}
+
+.error-alert-message {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: #742A2A;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.45;
+}
+
+.error-alert-warnings {
+  margin: 0.35rem 0 0.75rem 1.25rem;
+  padding: 0;
+  font-size: 0.84rem;
+  color: #9B2C2C;
+}
+
+.error-alert-warnings li {
+  margin-bottom: 0.25rem;
+}
+
+.error-alert-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.compact-error-btn {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Upload Warning Banner */
+.upload-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.9rem;
+  margin-bottom: 1rem;
+  font-size: 0.84rem;
+  color: #92400E;
+}
+
+.upload-warning-banner span {
+  flex-grow: 1;
+}
+
+

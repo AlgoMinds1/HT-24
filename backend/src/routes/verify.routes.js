@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { handleVerifyClaim } from '../controllers/verify.controller.js';
 import { uploadMiddleware } from '../middleware/upload.js';
 import { retrieverService } from '../retrieval/retriever.service.js';
+import { verificationCache } from '../utils/cache.js';
 
 // TruthLens Claim Verification Routes - Grounded Retrieval Active
 const router = Router();
@@ -13,7 +14,24 @@ const router = Router();
  * - url (application/json)
  * - image, audio, pdf (multipart/form-data with "file" field)
  */
-router.post('/verify', uploadMiddleware.single('file'), handleVerifyClaim);
+router.post('/verify', uploadMiddleware, handleVerifyClaim);
+
+/**
+ * GET /api/cache/stats
+ * Returns in-memory LRU cache statistics.
+ */
+router.get('/cache/stats', (req, res) => {
+  res.status(200).json(verificationCache.getStats());
+});
+
+/**
+ * POST /api/cache/clear
+ * Clears verification cache.
+ */
+router.post('/cache/clear', (req, res) => {
+  verificationCache.clear();
+  res.status(200).json({ success: true, message: 'Verification cache cleared.' });
+});
 
 /**
  * GET /api/inspect-evidence

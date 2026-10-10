@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
-import { verifyForward, FIXTURE_MAP, USE_MOCK } from '../services/verificationService';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { verifyForward, FIXTURE_MAP, DEFAULT_USE_MOCK } from '../services/verificationService';
 
 const VerificationContext = createContext(null);
 
@@ -10,13 +10,36 @@ export function VerificationProvider({ children }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [resultData, setResultData] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(null); // { message, code, warnings, canRetry, isConnectionError }
+
+  // Interactive Live / Mock Toggle with persistent storage
+  const [isMockMode, setIsMockModeState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('truthlens_use_mock');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch {}
+    return DEFAULT_USE_MOCK;
+  });
+
+  const setMockMode = (mode) => {
+    setIsMockModeState(mode);
+    try {
+      localStorage.setItem('truthlens_use_mock', mode ? 'true' : 'false');
+    } catch {}
+  };
+
+  const toggleMockMode = () => {
+    setMockMode(!isMockMode);
+  };
 
   // Form State
   const [textInput, setTextInput] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [urlInput, setUrlInput] = useState('');
   const [activePresetKey, setActivePresetKey] = useState(null);
+  const [lastPayload, setLastPayload] = useState(null);
 
   const goToDashboard = () => {
     setScreen('input');
@@ -24,6 +47,10 @@ export function VerificationProvider({ children }) {
 
   const goToLanding = () => {
     setScreen('landing');
+  };
+
+  const clearError = () => {
+    setError(null);
   };
 
   const selectPreset = (fixtureKey, andVerifyDirectly = false) => {
@@ -35,6 +62,7 @@ export function VerificationProvider({ children }) {
     setSelectedFile(null);
     setUrlInput('');
     setScreen('input');
+    setError(null);
 
     if (andVerifyDirectly) {
       setTimeout(() => {
@@ -53,6 +81,7 @@ export function VerificationProvider({ children }) {
     setSelectedFile(null);
     setUrlInput('');
     setActivePresetKey(null);
+    setLastPayload(null);
   };
 
   const handleStartVerificationWithPreset = async (presetKey) => {
@@ -65,16 +94,25 @@ export function VerificationProvider({ children }) {
       type: 'text',
       presetKey: presetKey
     };
+    setLastPayload(payload);
 
     try {
-      const result = await verifyForward(payload, (stepIdx) => {
-        setCurrentStepIndex(stepIdx);
-      });
+      const result = await verifyForward(
+        payload, 
+        (stepIdx) => setCurrentStepIndex(stepIdx),
+        { isMockMode }
+      );
       setResultData(result);
       setScreen('result');
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.message || 'An unexpected error occurred during verification.');
+      setError({
+        message: err.message || 'An unexpected error occurred during verification.',
+        code: err.code || 'UNKNOWN_ERROR',
+        warnings: err.warnings || [],
+        canRetry: err.canRetry !== false,
+        isConnectionError: Boolean(err.isConnectionError)
+      });
       setScreen('input');
     } finally {
       setIsAnalyzing(false);
@@ -101,18 +139,40 @@ export function VerificationProvider({ children }) {
       payload.file = selectedFile;
     }
 
+    setLastPayload(payload);
+
     try {
-      const result = await verifyForward(payload, (stepIdx) => {
-        setCurrentStepIndex(stepIdx);
-      });
+      const result = await verifyForward(
+        payload, 
+        (stepIdx) => setCurrentStepIndex(stepIdx),
+        { isMockMode }
+      );
       setResultData(result);
       setScreen('result');
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.message || 'An unexpected error occurred during verification.');
+      setError({
+        message: err.message || 'An unexpected error occurred during verification.',
+        code: err.code || 'UNKNOWN_ERROR',
+        warnings: err.warnings || [],
+        canRetry: err.canRetry !== false,
+        isConnectionError: Boolean(err.isConnectionError)
+      });
       setScreen('input');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const retryVerification = () => {
+    if (lastPayload) {
+      if (lastPayload.presetKey) {
+        handleStartVerificationWithPreset(lastPayload.presetKey);
+      } else {
+        handleStartVerification();
+      }
+    } else {
+      handleStartVerification();
     }
   };
 
@@ -129,6 +189,8 @@ export function VerificationProvider({ children }) {
         resultData,
         isAnalyzing,
         error,
+        clearError,
+        retryVerification,
         textInput,
         setTextInput,
         selectedFile,
@@ -139,7 +201,9 @@ export function VerificationProvider({ children }) {
         selectPreset,
         startVerification: handleStartVerification,
         resetVerification: resetAll,
-        isMockMode: USE_MOCK
+        isMockMode,
+        setMockMode,
+        toggleMockMode
       }}
     >
       {children}

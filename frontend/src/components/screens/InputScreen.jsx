@@ -15,7 +15,9 @@ import {
   Eye, 
   CheckCircle2, 
   Globe,
-  HelpCircle
+  HelpCircle,
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { FIXTURE_MAP } from '../../services/verificationService';
@@ -32,7 +34,12 @@ export default function InputScreen() {
     setUrlInput,
     activePresetKey,
     selectPreset,
-    startVerification
+    startVerification,
+    error,
+    clearError,
+    retryVerification,
+    isMockMode,
+    setMockMode
   } = useVerification();
 
   const [dragActive, setDragActive] = useState(false);
@@ -66,15 +73,49 @@ export default function InputScreen() {
     return false;
   };
 
+  const [uploadWarning, setUploadWarning] = useState(null);
+
+  const validateFile = (file) => {
+    setUploadWarning(null);
+    if (!file) return false;
+
+    // Check size limit: 20MB upper bound
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadWarning('File size exceeds the 20MB limit. Please choose a smaller file.');
+      return false;
+    }
+
+    if (activeTab === 'image') {
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowed.includes(file.type.toLowerCase())) {
+        setUploadWarning('Please select a valid image file (JPEG, PNG, WebP, or GIF).');
+        return false;
+      }
+    } else if (activeTab === 'audio') {
+      if (!file.type.startsWith('audio/') && !/\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(file.name)) {
+        setUploadWarning('Please select a valid audio file (MP3, WAV, OGG, M4A, or AAC).');
+        return false;
+      }
+    } else if (activeTab === 'pdf') {
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        setUploadWarning('Please select a valid PDF document.');
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleFileDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
-      if (activeTab === 'image' && file.type.startsWith('image/')) {
-        setImagePreviewUrl(URL.createObjectURL(file));
+      if (validateFile(file)) {
+        setSelectedFile(file);
+        if (activeTab === 'image' && file.type.startsWith('image/')) {
+          setImagePreviewUrl(URL.createObjectURL(file));
+        }
       }
     }
   };
@@ -82,9 +123,11 @@ export default function InputScreen() {
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedFile(file);
-      if (activeTab === 'image' && file.type.startsWith('image/')) {
-        setImagePreviewUrl(URL.createObjectURL(file));
+      if (validateFile(file)) {
+        setSelectedFile(file);
+        if (activeTab === 'image' && file.type.startsWith('image/')) {
+          setImagePreviewUrl(URL.createObjectURL(file));
+        }
       }
     }
   };
@@ -133,6 +176,79 @@ export default function InputScreen() {
       </div>
 
       <div className="glass-card" style={{ marginTop: '1.25rem' }}>
+        {/* Verification Failure / Warning Banner */}
+        {error && (
+          <div className="error-alert-banner" role="alert">
+            <div className="error-alert-header">
+              <div className="error-alert-title-wrap">
+                <AlertTriangle size={20} className="error-alert-icon" />
+                <span className="error-alert-title">
+                  {error.code ? `Verification Notice: ${error.code}` : 'Verification Notice'}
+                </span>
+              </div>
+              <button 
+                type="button" 
+                className="error-dismiss-btn" 
+                onClick={clearError}
+                aria-label="Dismiss error notice"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <p className="error-alert-message">{error.message}</p>
+            
+            {Array.isArray(error.warnings) && error.warnings.length > 0 && (
+              <ul className="error-alert-warnings">
+                {error.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            )}
+
+            <div className="error-alert-actions">
+              {error.canRetry && (
+                <button
+                  type="button"
+                  className="btn-primary compact-error-btn"
+                  onClick={retryVerification}
+                >
+                  <RotateCcw size={14} />
+                  <span>Retry Verification</span>
+                </button>
+              )}
+
+              {!isMockMode && (error.isConnectionError || error.code === 'RATE_LIMITED' || error.code === 'SERVER_ERROR' || error.code === 'TIMEOUT') && (
+                <button
+                  type="button"
+                  className="btn-secondary compact-error-btn"
+                  onClick={() => {
+                    setMockMode(true);
+                    clearError();
+                    setTimeout(() => {
+                      retryVerification();
+                    }, 50);
+                  }}
+                >
+                  <Sparkles size={14} />
+                  <span>Switch to Demo Mode & Retry</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Client-side File Upload Warning */}
+        {uploadWarning && (
+          <div className="upload-warning-banner" role="alert">
+            <AlertCircle size={16} />
+            <span>{uploadWarning}</span>
+            <button type="button" className="error-dismiss-btn" onClick={() => setUploadWarning(null)}>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Five Input Tabs */}
         <div className="tabs-navigation">
           <button

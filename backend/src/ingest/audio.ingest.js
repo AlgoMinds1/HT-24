@@ -119,8 +119,11 @@ Return JSON in this format:
     }
   }
 
-  if (!claimText) {
-    claimText = transcript || `Audio forward (${file.originalname || 'voice_note'}) evaluated for spoken claim verification.`;
+  if (readability === 'unreadable' || (!transcript && !claimText)) {
+    warnings.push('The audio recording is unintelligible, muffled, or obscured by excessive background noise. Please upload a clearer voice note.');
+    claimText = '';
+  } else if (!claimText) {
+    claimText = transcript.substring(0, 500);
   }
 
   return createIngestionResult({

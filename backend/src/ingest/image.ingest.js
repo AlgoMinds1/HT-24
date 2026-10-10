@@ -122,8 +122,11 @@ Return JSON in this format:
     }
   }
 
-  if (!claimText) {
-    claimText = extractedText || `Image forward (${file.originalname || 'screenshot'}) evaluated for visual misinformation.`;
+  if (readability === 'unreadable' || (!extractedText && !claimText)) {
+    warnings.push('The uploaded image does not contain legible text or a distinct verifiable claim. Please provide a clear, higher-resolution screenshot or image.');
+    claimText = '';
+  } else if (!claimText) {
+    claimText = extractedText.substring(0, 500);
   }
 
   return createIngestionResult({

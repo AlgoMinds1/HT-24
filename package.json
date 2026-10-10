@@ -8,8 +8,9 @@
     "start:backend": "node backend/src/server.js",
     "validate:contracts": "node contracts/validate_fixtures.js",
     "test:backend": "node backend/scripts/test-verify.js",
+    "test:phase7": "node backend/test/phase7-scenarios.test.js",
     "test:frontend": "npm test --prefix frontend",
-    "test": "npm run validate:contracts"
+    "test": "npm run validate:contracts && npm run test:phase7"
   },
   "devDependencies": {
     "ajv": "^8.17.1",

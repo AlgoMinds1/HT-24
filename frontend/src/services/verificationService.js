@@ -1,15 +1,15 @@
 /**
  * TruthLens Verification Service
  * Handles claim processing, pipeline orchestration, and contract data delivery.
- * Supports both Mock Fixtures (USE_MOCK=true) and Live Backend API (USE_MOCK=false).
+ * Supports both Mock Fixtures (Demo mode) and Live Backend API (Live AI mode).
  */
 
 import outdatedGovSchemeFixture from '../fixtures/outdated_gov_scheme.json';
 import falseHealthClaimFixture from '../fixtures/false_health_claim.json';
 import suspiciousKycMessageFixture from '../fixtures/suspicious_kyc_message.json';
 
-// In Phase 1 and 2, USE_MOCK is true by default
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// Default mock setting based on environment
+export const DEFAULT_USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const FIXTURE_MAP = {
@@ -44,28 +44,32 @@ export const ANALYSIS_STEPS = [
 ];
 
 /**
- * Executes the verification flow with step progression callbacks.
+ * Executes the verification flow with step progression callbacks, timeout guardrails, and structured error recovery.
  * 
- * @param {Object} inputPayload - { type: 'text'|'image'|'audio'|'pdf'|'url', content: any, presetKey?: string }
+ * @param {Object} inputPayload - { type: 'text'|'image'|'audio'|'pdf'|'url', content: any, file?: File, presetKey?: string }
  * @param {Function} onStepProgress - Callback receiving step index (0..3)
- * @returns {Promise<Object>} Verdict payload matching verdict.schema.json
+ * @param {Object} options - { isMockMode?: boolean, timeoutMs?: number }
+ * @returns {Promise<Object>} Verdict payload matching contracts/verdict.schema.json
  */
-export async function verifyForward(inputPayload, onStepProgress) {
+export async function verifyForward(inputPayload, onStepProgress, options = {}) {
+  const isMock = options.isMockMode !== undefined ? options.isMockMode : DEFAULT_USE_MOCK;
+  const timeoutMs = options.timeoutMs || 60000;
+
   // ============================================================================
-  // MOCK MODE (Fixture-driven)
+  // MOCK MODE (Deterministic Fixture-driven)
   // ============================================================================
-  if (USE_MOCK) {
+  if (isMock) {
     if (onStepProgress) onStepProgress(0);
-    await new Promise((res) => setTimeout(res, 900));
+    await new Promise((res) => setTimeout(res, 800));
 
     if (onStepProgress) onStepProgress(1);
-    await new Promise((res) => setTimeout(res, 1100));
+    await new Promise((res) => setTimeout(res, 1000));
 
     if (onStepProgress) onStepProgress(2);
-    await new Promise((res) => setTimeout(res, 1200));
+    await new Promise((res) => setTimeout(res, 1000));
 
     if (onStepProgress) onStepProgress(3);
-    await new Promise((res) => setTimeout(res, 800));
+    await new Promise((res) => setTimeout(res, 700));
 
     let selectedFixture = FIXTURE_MAP.outdated_gov.data;
 
@@ -101,16 +105,25 @@ export async function verifyForward(inputPayload, onStepProgress) {
   }
 
   // ============================================================================
-  // LIVE MODE (Backend API POST /api/verify)
+  // LIVE MODE (Backend API POST /api/verify with timeout & retry handling)
   // ============================================================================
-  let fetchOptions = {
-    method: 'POST'
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  const fetchOptions = {
+    method: 'POST',
+    signal: controller.signal
   };
 
   if (inputPayload.type === 'text') {
     const textToVerify = typeof inputPayload.content === 'string' ? inputPayload.content.trim() : '';
     if (!textToVerify || textToVerify.length < 10) {
-      throw new Error('Please provide at least 10 characters of text to verify.');
+      clearTimeout(timeoutId);
+      const err = new Error('Please provide at least 10 characters of text to verify.');
+      err.code = 'TEXT_TOO_SHORT';
+      throw err;
     }
     fetchOptions.headers = { 'Content-Type': 'application/json' };
     fetchOptions.body = JSON.stringify({ inputType: 'text', text: textToVerify });
@@ -118,21 +131,30 @@ export async function verifyForward(inputPayload, onStepProgress) {
   } else if (inputPayload.type === 'url') {
     const urlToVerify = typeof inputPayload.content === 'string' ? inputPayload.content.trim() : '';
     if (!urlToVerify) {
-      throw new Error('Please provide a valid URL to verify.');
+      clearTimeout(timeoutId);
+      const err = new Error('Please provide a valid URL to verify.');
+      err.code = 'MISSING_URL';
+      throw err;
     }
     fetchOptions.headers = { 'Content-Type': 'application/json' };
     fetchOptions.body = JSON.stringify({ inputType: 'url', url: urlToVerify });
 
   } else if (inputPayload.type === 'image' || inputPayload.type === 'audio' || inputPayload.type === 'pdf') {
     if (!inputPayload.file) {
-      throw new Error(`Please attach a ${inputPayload.type} file before running verification.`);
+      clearTimeout(timeoutId);
+      const err = new Error(`Please attach a ${inputPayload.type} file before running verification.`);
+      err.code = `MISSING_${inputPayload.type.toUpperCase()}_FILE`;
+      throw err;
     }
     const formData = new FormData();
     formData.append('inputType', inputPayload.type);
     formData.append('file', inputPayload.file);
     fetchOptions.body = formData; // Browser automatically populates multipart/form-data boundary
   } else {
-    throw new Error(`Unsupported input type: ${inputPayload.type}`);
+    clearTimeout(timeoutId);
+    const err = new Error(`Unsupported input type: ${inputPayload.type}`);
+    err.code = 'UNSUPPORTED_INPUT_TYPE';
+    throw err;
   }
 
   if (onStepProgress) onStepProgress(0); // Ingesting input & extracting claim
@@ -148,20 +170,34 @@ export async function verifyForward(inputPayload, onStepProgress) {
 
     const response = await fetch(`${API_BASE_URL}/verify`, fetchOptions);
 
+    clearTimeout(timeoutId);
     clearTimeout(progressTimer1);
     clearTimeout(progressTimer2);
 
     if (onStepProgress) onStepProgress(3); // Finalizing verdict
 
     if (!response.ok) {
-      let errorMessage = `Verification server returned error status ${response.status}`;
+      let errorMessage = `Verification server returned status ${response.status}`;
+      let errorCode = 'SERVER_ERROR';
+      let errorWarnings = [];
+
       try {
         const errorJson = await response.json();
-        if (errorJson.error?.message) {
-          errorMessage = errorJson.error.message;
+        if (errorJson.error) {
+          errorMessage = errorJson.error.message || errorMessage;
+          errorCode = errorJson.error.code || errorCode;
+          errorWarnings = errorJson.error.warnings || [];
+        } else if (errorJson.message) {
+          errorMessage = errorJson.message;
         }
       } catch {}
-      throw new Error(errorMessage);
+
+      const err = new Error(errorMessage);
+      err.code = errorCode;
+      err.status = response.status;
+      err.warnings = errorWarnings;
+      err.canRetry = response.status >= 500 || response.status === 429;
+      throw err;
     }
 
     const liveResult = await response.json();
@@ -169,11 +205,25 @@ export async function verifyForward(inputPayload, onStepProgress) {
     return liveResult;
 
   } catch (err) {
-    if (err.name === 'TypeError' && err.message?.includes('fetch')) {
-      throw new Error(
-        `Unable to reach TruthLens backend (${API_BASE_URL}). Please verify that the backend server is running on port 8000, or set VITE_USE_MOCK=true in frontend/.env to test in demo fixture mode.`
-      );
+    clearTimeout(timeoutId);
+
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(`Verification timed out after ${Math.round(timeoutMs / 1000)} seconds. The upstream provider or server took too long to respond.`);
+      timeoutErr.code = 'TIMEOUT';
+      timeoutErr.canRetry = true;
+      throw timeoutErr;
     }
+
+    if (err.name === 'TypeError' && err.message?.includes('fetch')) {
+      const connErr = new Error(
+        `Unable to reach TruthLens backend at ${API_BASE_URL}. Ensure the backend service is running on port 8000, or switch to Demo Fixtures mode.`
+      );
+      connErr.code = 'CONNECTION_FAILED';
+      connErr.isConnectionError = true;
+      connErr.canRetry = true;
+      throw connErr;
+    }
+
     throw err;
   }
 }

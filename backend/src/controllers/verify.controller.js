@@ -2,18 +2,42 @@ import { validateVerificationRequest } from '../validators/input.validator.js';
 import { ingestInput } from '../ingest/index.js';
 import { verifyTextWithGemini, buildUnconfirmedPayload } from '../services/gemini.service.js';
 import { retrieverService } from '../retrieval/retriever.service.js';
+import { verificationCache, VerificationCache } from '../utils/cache.js';
 
 /**
- * Controller handling POST /api/verify for all five input types:
+ * Unified verification controller handling POST /api/verify for all five input types:
  * text, image, audio, pdf, and url.
- * Incorporates Phase 5 Grounded Evidence Retrieval and strict UNCONFIRMED constraints.
+ * Incorporates In-Memory Caching, Grounded Evidence Retrieval, and UNCONFIRMED constraints.
  */
 export async function handleVerifyClaim(req, res, next) {
   try {
     // 1. Validate request shape and type
     const validatedRequest = validateVerificationRequest(req);
 
-    // 2. Ingest input through format-specific handler into Unified Claim Contract
+    // 2. Compute deterministic cache key
+    const skipCache = req.query.fresh === 'true' || req.headers['x-skip-cache'] === 'true';
+    let cacheKey = null;
+
+    if (validatedRequest.inputType === 'text') {
+      cacheKey = `text:${VerificationCache.hashKey(validatedRequest.text)}`;
+    } else if (validatedRequest.inputType === 'url') {
+      cacheKey = `url:${VerificationCache.hashKey(validatedRequest.url)}`;
+    } else if (validatedRequest.file && validatedRequest.file.buffer) {
+      cacheKey = `${validatedRequest.inputType}:${VerificationCache.hashKey(validatedRequest.file.buffer)}`;
+    }
+
+    if (!skipCache && cacheKey) {
+      const cachedResult = verificationCache.get(cacheKey);
+      if (cachedResult) {
+        return res.status(200).json({
+          ...cachedResult,
+          cached: true,
+          cache_hit: true
+        });
+      }
+    }
+
+    // 3. Ingest input through format-specific handler into Unified Claim Contract
     const ingestionResult = await ingestInput(validatedRequest);
 
     const claimText = ingestionResult.claim?.text;
@@ -21,18 +45,18 @@ export async function handleVerifyClaim(req, res, next) {
       return res.status(400).json({
         error: {
           code: 'UNREADABLE_INPUT',
-          message: 'Unable to extract a clear factual claim from the submitted content.',
+          message: 'Unable to extract a clear factual claim from the submitted content. Please check the file clarity or provide accompanying context.',
           warnings: ingestionResult.extraction?.warnings || []
         }
       });
     }
 
-    // 3. Phase 5 Grounded Evidence Retrieval across Curated KB, Fact Check API, and Search
+    // 4. Grounded Evidence Retrieval across Curated KB, Fact Check API, and Search
     const { evidence, retrieval_metadata } = await retrieverService.retrieveEvidence(claimText);
 
     let verdictPayload;
 
-    // 4. Strict Epistemic Constraint:
+    // 5. Strict Epistemic Constraint:
     // If no useful evidence was found, return UNCONFIRMED. Never present unsupported claims as confirmed.
     if (!evidence || evidence.length === 0) {
       verdictPayload = buildUnconfirmedPayload(claimText, retrieval_metadata);
@@ -40,8 +64,9 @@ export async function handleVerifyClaim(req, res, next) {
       verdictPayload = await verifyTextWithGemini(claimText, evidence);
     }
 
-    // 5. Enrich verdict with multimodal input metadata and extraction artifacts
+    // 6. Enrich verdict with multimodal input metadata and extraction artifacts
     verdictPayload.mode = 'live';
+    verdictPayload.cached = false;
     verdictPayload.input = {
       raw_text: claimText,
       media_type: ingestionResult.inputType,
@@ -49,9 +74,14 @@ export async function handleVerifyClaim(req, res, next) {
       source_platform: ingestionResult.extraction?.sourceUrl || ingestionResult.extraction?.fileName || 'Multimodal Forward'
     };
 
-    // 6. Attach extraction metadata & retrieval provider status reports
+    // 7. Attach extraction metadata & retrieval provider status reports
     verdictPayload.extraction = ingestionResult.extraction;
     verdictPayload.retrieval_metadata = retrieval_metadata;
+
+    // 8. Cache result for fast replay
+    if (cacheKey) {
+      verificationCache.set(cacheKey, verdictPayload);
+    }
 
     if (res.headersSent) return;
     return res.status(200).json(verdictPayload);
