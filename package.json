@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "description": "TruthLens - Automated fact-checking and forward verification system",
   "scripts": {
+    "build": "npm run build --prefix frontend",
+    "dev": "npm run dev --prefix frontend",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "node --watch backend/src/server.js",
     "start:backend": "node backend/src/server.js",
@@ -12,6 +14,10 @@
     "test:frontend": "npm test --prefix frontend",
     "test": "npm run validate:contracts && npm run test:phase7"
   },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "devDependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
