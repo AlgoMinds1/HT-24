@@ -4,39 +4,24 @@ import {
   Check, 
   Copy, 
   Download, 
-  ThumbsUp, 
-  ThumbsDown, 
-  Info,
-  Layers,
-  ArrowRight,
-  Sparkles,
-  AlertCircle
+  ArrowLeft,
+  Sparkles
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
-import { FIXTURE_MAP } from '../../services/verificationService';
 import { normalizeVerdictContract } from '../../contracts/verdictContract';
 
-// Import the six Phase 2 Reusable Components
-import InputStrip from '../results/InputStrip';
-import VerdictCard from '../results/VerdictCard';
-import EvidenceList from '../results/EvidenceList';
-import StressTestPanel from '../results/StressTestPanel';
-import TruthTimeline from '../results/TruthTimeline';
-import ActionRiskCard from '../results/ActionRiskCard';
+// Import our modular redesigned results components
+import VerificationSummary from '../results/VerificationSummary';
+import ResultsTabs, { RESULTS_TAB_KEYS } from '../results/ResultsTabs';
+import OverviewTab from '../results/OverviewTab';
+import EvidenceTab from '../results/EvidenceTab';
+import InvestigationTab from '../results/InvestigationTab';
+import SafetyFeedbackTab from '../results/SafetyFeedbackTab';
 
 /**
- * ResultScreen (Phase 2 Composition)
- * 
- * Composes the six reusable verification report components:
- * 1. InputStrip - Input format, raw forward, extracted claim, mock indicator
- * 2. VerdictCard - Primary determination, confidence score, plain English assessment
- * 3. EvidenceList - Traceable citations with relation filters and source links
- * 4. StressTestPanel - Multi-path checks, conflict detection, and counter-evidence
- * 5. TruthTimeline - Historical evolution and temporal factual shifts
- * 6. ActionRiskCard - Harm assessment and immediate safety steps
- * 
- * Preserves all Phase 1 features: JSON export, clipboard summary, fact-checker feedback,
- * and adds an instant fixture switcher in mock mode.
+ * Redesigned ResultScreen
+ * Modern, clean, tab-based fact-checking dashboard.
+ * Solves the long continuous layout problem by organizing findings into 4 focused tabs.
  */
 export default function ResultScreen() {
   const { 
@@ -44,13 +29,13 @@ export default function ResultScreen() {
     resetVerification, 
     isMockMode,
     selectPreset,
-    activePresetKey
+    activePresetKey 
   } = useVerification();
 
+  const [activeTab, setActiveTab] = useState(RESULTS_TAB_KEYS.OVERVIEW);
   const [copied, setCopied] = useState(false);
-  const [feedbackGiven, setFeedbackGiven] = useState(null); // 'helpful' | 'unhelpful' | null
 
-  // Canonical normalized verdict contract as the single source of truth
+  // Canonical normalized verdict contract
   const contract = useMemo(() => {
     if (!resultData) return null;
     return normalizeVerdictContract(resultData, { mode: isMockMode ? 'mock' : 'live' });
@@ -59,8 +44,11 @@ export default function ResultScreen() {
   if (!contract) {
     return (
       <div className="empty-result-state" role="status">
+        <div className="empty-icon-wrap">
+          <RotateCcw size={32} />
+        </div>
         <h3>No verification data available</h3>
-        <p>Submit a forward or select one of the mock verification fixtures to generate a report.</p>
+        <p>Submit a forward or choose one of the mock scenarios to generate a report.</p>
         <button 
           type="button" 
           className="btn-primary" 
@@ -73,21 +61,22 @@ export default function ResultScreen() {
     );
   }
 
-  const { input, verdict, evidence, stressTest, truthTimeline, actionRisk } = contract;
+  const { verdict, input, actionRisk, evidence = [] } = contract;
+  const safeEvidence = Array.isArray(evidence) ? evidence : [];
 
-  const copySummary = () => {
+  const handleCopySummary = () => {
     const lines = [
       `[TruthLens Verification Report]`,
-      `Verdict: ${verdict.label} (${verdict.status})`,
+      `Determination: ${verdict.label} (${verdict.status})`,
       verdict.confidence !== null ? `Evaluated Confidence: ${(verdict.confidence * 100).toFixed(0)}%` : null,
       `Extracted Claim: "${input.extractedClaim || 'N/A'}"`,
       ``,
-      `Plain Explanation:`,
+      `What This Means:`,
       `${verdict.explanation || 'No explanation provided.'}`,
       ``,
-      actionRisk?.safetyAdvice ? `Recommended Safety Action: ${actionRisk.safetyAdvice}` : null,
+      actionRisk?.safetyAdvice ? `Recommended Action: ${actionRisk.safetyAdvice}` : null,
       ``,
-      `Verified via TruthLens Multimodal Verification Engine.`
+      `Verified via TruthLens Multimodal Fact-Checking Engine.`
     ].filter(Boolean);
 
     navigator.clipboard.writeText(lines.join('\n'));
@@ -95,7 +84,7 @@ export default function ResultScreen() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const downloadJson = () => {
+  const handleDownloadJson = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(contract, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -105,135 +94,102 @@ export default function ResultScreen() {
     downloadAnchor.remove();
   };
 
+  const hasSafetyRisk = actionRisk && (
+    actionRisk.level === 'CRITICAL' || 
+    actionRisk.level === 'HIGH' || 
+    Boolean(actionRisk.warningFlag)
+  );
+
   return (
-    <div className="result-screen-root" aria-label="Verification Report">
-      {/* Mock Mode Quick Fixture Switcher */}
-      {isMockMode && (
-        <div className="fixture-quick-switcher" role="region" aria-label="Mock Fixtures Demo Bar">
-          <div className="switcher-label">
-            <Layers size={15} aria-hidden="true" />
-            <span>Switch Mock Scenario:</span>
-          </div>
-          <div className="switcher-buttons-group">
-            {Object.values(FIXTURE_MAP).map(f => (
-              <button
-                key={f.key}
-                type="button"
-                className={`switcher-pill ${activePresetKey === f.key ? 'active' : ''}`}
-                onClick={() => selectPreset(f.key, true)}
-                title={f.sampleSnippet}
-              >
-                <span>{f.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Live AI Analysis Mode Disclosure Banner */}
+    <div className="redesigned-results-container" aria-label="Verification Report Dashboard">
+      
+      {/* 1. Live Mode Disclosure Banner (if running live model) */}
       {contract.mode === 'live' && (
-        <div className="live-disclosure-banner" role="status">
-          <Sparkles size={18} className="live-sparkle-icon" aria-hidden="true" />
-          <div>
-            <strong>Live AI Text Analysis (Gemini Reasoning Active)</strong>
-            <p>
-              This evaluation was generated directly via Gemini analytical reasoning. 
-              Authoritative web evidence retrieval (RAG) and official gazette cross-checking are scheduled for an upcoming phase. 
-              Claims without external archival records are categorized as unconfirmed or advisory.
-            </p>
-          </div>
+        <div className="compact-live-banner" role="status">
+          <Sparkles size={16} className="live-sparkle-icon" aria-hidden="true" />
+          <span>
+            <strong>Live AI Verification Active:</strong> Grounded against local knowledge base & verified fact-check registries.
+          </span>
         </div>
       )}
 
-      {/* COMPONENT 1: InputStrip */}
-      <InputStrip 
-        input={input} 
-        mode={contract.mode} 
+      {/* 2. Verification Summary — First Screen (understand in under 10 seconds) */}
+      <VerificationSummary 
+        contract={contract}
+        isMockMode={isMockMode}
+        activePresetKey={activePresetKey}
+        onSelectPreset={(key) => selectPreset(key, true)}
       />
 
-      {/* COMPONENT 2: VerdictCard */}
-      <VerdictCard 
-        verdict={verdict} 
+      {/* 3. Horizontal Tab Navigation Bar (4 clean tabs) */}
+      <ResultsTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        evidenceCount={safeEvidence.length}
+        hasSafetyRisk={hasSafetyRisk}
       />
 
-      {/* COMPONENT 3: EvidenceList */}
-      <EvidenceList 
-        evidence={evidence} 
-      />
+      {/* 4. Active Tab Content (Only currently selected tab is visible) */}
+      <div className="results-tab-viewport">
+        {activeTab === RESULTS_TAB_KEYS.OVERVIEW && (
+          <OverviewTab 
+            contract={contract} 
+            onNavigateTab={setActiveTab} 
+          />
+        )}
 
-      {/* COMPONENT 4: StressTestPanel */}
-      <StressTestPanel 
-        stressTest={stressTest} 
-      />
+        {activeTab === RESULTS_TAB_KEYS.EVIDENCE && (
+          <EvidenceTab 
+            contract={contract} 
+          />
+        )}
 
-      {/* COMPONENT 5: TruthTimeline */}
-      <TruthTimeline 
-        truthTimeline={truthTimeline} 
-      />
+        {activeTab === RESULTS_TAB_KEYS.INVESTIGATION && (
+          <InvestigationTab 
+            contract={contract} 
+          />
+        )}
 
-      {/* COMPONENT 6: ActionRiskCard */}
-      <ActionRiskCard 
-        actionRisk={actionRisk} 
-      />
-
-      {/* Interactive Fact-Checker Feedback Card */}
-      <div className="feedback-box" role="region" aria-label="Report feedback">
-        <div className="feedback-leading-text">
-          <Info size={18} className="feedback-info-icon" aria-hidden="true" />
-          <span>Was this verification analysis accurate and helpful?</span>
-        </div>
-        <div className="feedback-btn-group">
-          <button
-            type="button"
-            className={`feedback-btn ${feedbackGiven === 'helpful' ? 'active-helpful' : ''}`}
-            onClick={() => setFeedbackGiven('helpful')}
-            aria-pressed={feedbackGiven === 'helpful'}
-          >
-            <ThumbsUp size={14} aria-hidden="true" />
-            <span>{feedbackGiven === 'helpful' ? 'Thanks for feedback!' : 'Helpful'}</span>
-          </button>
-          <button
-            type="button"
-            className={`feedback-btn ${feedbackGiven === 'unhelpful' ? 'active-unhelpful' : ''}`}
-            onClick={() => setFeedbackGiven('unhelpful')}
-            aria-pressed={feedbackGiven === 'unhelpful'}
-          >
-            <ThumbsDown size={14} aria-hidden="true" />
-            <span>{feedbackGiven === 'unhelpful' ? 'Flagged for Review' : 'Needs Review'}</span>
-          </button>
-        </div>
+        {activeTab === RESULTS_TAB_KEYS.SAFETY && (
+          <SafetyFeedbackTab 
+            contract={contract} 
+            onCopySummary={handleCopySummary}
+            copied={copied}
+            onDownloadJson={handleDownloadJson}
+          />
+        )}
       </div>
 
-      {/* Bottom Action Controls */}
-      <footer className="result-actions-footer">
-        <div className="result-export-buttons">
-          <button
-            type="button"
-            className="tab-btn export-action-btn"
-            onClick={copySummary}
-          >
-            {copied ? <Check size={18} color="var(--verdict-supported)" /> : <Copy size={18} />}
-            <span>{copied ? 'Copied to Clipboard!' : 'Copy Summary'}</span>
-          </button>
-
-          <button
-            type="button"
-            className="tab-btn export-action-btn"
-            onClick={downloadJson}
-          >
-            <Download size={18} />
-            <span>Download Verdict JSON</span>
-          </button>
-        </div>
-
+      {/* 5. Compact Bottom Action Controls */}
+      <footer className="redesigned-results-footer">
         <button
           type="button"
-          className="btn-primary verify-another-btn"
+          className="btn-primary footer-verify-btn"
           onClick={resetVerification}
         >
-          <RotateCcw size={18} />
+          <RotateCcw size={16} aria-hidden="true" />
           <span>Verify Another Forward</span>
         </button>
+
+        <div className="footer-secondary-actions">
+          <button
+            type="button"
+            className="footer-action-link"
+            onClick={handleCopySummary}
+          >
+            {copied ? <Check size={14} color="var(--verdict-supported)" /> : <Copy size={14} />}
+            <span>{copied ? 'Copied!' : 'Copy Summary'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="footer-action-link"
+            onClick={handleDownloadJson}
+          >
+            <Download size={14} />
+            <span>Download JSON</span>
+          </button>
+        </div>
       </footer>
     </div>
   );

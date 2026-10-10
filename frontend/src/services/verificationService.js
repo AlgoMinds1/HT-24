@@ -10,7 +10,7 @@ import suspiciousKycMessageFixture from '../fixtures/suspicious_kyc_message.json
 
 // In Phase 1 and 2, USE_MOCK is true by default
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const FIXTURE_MAP = {
   outdated_gov: {
@@ -171,7 +171,7 @@ export async function verifyForward(inputPayload, onStepProgress) {
   } catch (err) {
     if (err.name === 'TypeError' && err.message?.includes('fetch')) {
       throw new Error(
-        `Unable to connect to the TruthLens backend at ${API_BASE_URL}. Ensure the backend server is running (PORT 8000).`
+        `Unable to reach TruthLens backend (${API_BASE_URL}). Please verify that the backend server is running on port 8000, or set VITE_USE_MOCK=true in frontend/.env to test in demo fixture mode.`
       );
     }
     throw err;

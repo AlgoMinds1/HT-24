@@ -4,15 +4,32 @@ import './retrieval/retriever.service.js';
 
 const PORT = env.PORT;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('================================================================');
-  console.log(`🚀 TruthLens Backend Service active on port ${PORT}`);
+  console.log(`🚀 TruthLens Backend Service active on port ${PORT} (0.0.0.0)`);
   console.log(`   Environment: ${env.NODE_ENV}`);
   console.log(`   Allowed Origin: ${env.FRONTEND_ORIGIN}`);
   console.log(`   Gemini Model: ${env.GEMINI_MODEL}`);
   console.log(`   Gemini Key Configured: ${env.hasGeminiKey ? 'YES' : 'NO (Required for live queries)'}`);
   console.log(`   Health Check: http://localhost:${PORT}/api/health`);
   console.log('================================================================');
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use by another process. Please free port ${PORT} or change PORT in .env.`);
+  } else {
+    console.error('❌ Server error:', err);
+  }
+});
+
+// Process-level exception protection
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception in TruthLens backend:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Graceful Shutdown

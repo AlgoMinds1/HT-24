@@ -1,53 +1,66 @@
 import React from 'react';
-import { ShieldCheck, LayoutDashboard, Home } from 'lucide-react';
+import { ShieldCheck, RotateCcw, Home, LayoutDashboard } from 'lucide-react';
 import { useVerification } from '../context/VerificationContext';
 
+/**
+ * Compact Sticky Header
+ * Features logo, subtitle, primary 'Verify Another Forward' action, and secondary 'Home' link.
+ */
 export default function Header() {
-  const { isMockMode, screen, goToDashboard, goToLanding } = useVerification();
+  const { isMockMode, screen, goToDashboard, goToLanding, resetVerification } = useVerification();
 
   return (
-    <header className="app-header">
-      <div className="logo-group" onClick={goToLanding} style={{ cursor: 'pointer' }}>
-        <div className="logo-icon-wrapper">
-          <ShieldCheck size={26} color="#FAF7F2" strokeWidth={2.4} />
+    <header className="app-header compact-sticky-header">
+      <div className="header-brand-wrap" onClick={goToLanding} style={{ cursor: 'pointer' }} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') goToLanding(); }}>
+        <div className="logo-icon-wrapper compact">
+          <ShieldCheck size={22} color="#FAF7F2" strokeWidth={2.5} aria-hidden="true" />
         </div>
-        <div>
-          <span className="logo-title">TruthLens</span>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Viral Forward & Claim Verification
-          </p>
+        <div className="brand-text-column">
+          <div className="brand-title-row">
+            <span className="logo-title">TruthLens</span>
+            {isMockMode && (
+              <span className="compact-mock-tag" title="Local fixture contract mode active">
+                Demo Fixtures
+              </span>
+            )}
+          </div>
+          <span className="logo-subtitle">Viral Forward & Claim Verification</span>
         </div>
       </div>
 
-      <div className="header-badges">
-        {/* Screen Switcher */}
+      <nav className="header-actions-group" aria-label="Main Navigation">
+        {/* Secondary Home Navigation */}
+        <button 
+          type="button" 
+          className="header-link-btn" 
+          onClick={goToLanding}
+          aria-label="Navigate to Home"
+        >
+          <Home size={15} aria-hidden="true" />
+          <span>Home</span>
+        </button>
+
+        {/* Primary Action Button */}
         {screen === 'landing' ? (
           <button 
-            className="btn-primary" 
+            type="button" 
+            className="btn-primary compact-header-btn" 
             onClick={goToDashboard}
-            style={{ padding: '0.55rem 1.15rem', fontSize: '0.88rem' }}
           >
-            <LayoutDashboard size={15} />
+            <LayoutDashboard size={15} aria-hidden="true" />
             <span>Open Dashboard</span>
           </button>
         ) : (
           <button 
-            className="btn-secondary" 
-            onClick={goToLanding}
-            style={{ padding: '0.45rem 1rem', fontSize: '0.84rem' }}
+            type="button" 
+            className="btn-primary compact-header-btn" 
+            onClick={resetVerification}
           >
-            <Home size={15} />
-            <span>Landing Page</span>
+            <RotateCcw size={15} aria-hidden="true" />
+            <span>Verify Another Forward</span>
           </button>
         )}
-
-        {isMockMode && (
-          <div className="mock-indicator" title="Using local contract fixtures for verification without calling live backend APIs">
-            <span className="mock-dot"></span>
-            <span>Fixture Mode</span>
-          </div>
-        )}
-      </div>
+      </nav>
     </header>
   );
 }

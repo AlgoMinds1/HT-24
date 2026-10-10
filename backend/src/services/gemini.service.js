@@ -318,11 +318,11 @@ Please strictly rectify these errors and return pure JSON that passes contracts/
       throw err;
     }
 
-    if (err.status === 400 || err.message?.includes('API_KEY_INVALID')) {
-      throw ApiError.badRequest('Invalid Gemini API Key configured on backend.', 'INVALID_API_KEY');
+    if (err.status === 400 || err.message?.includes('API_KEY_INVALID') || err.message?.includes('API key not valid') || err.message?.includes('key')) {
+      throw ApiError.badRequest('Invalid Gemini API Key configured on backend. Please provide a valid API key from Google AI Studio (starting with AIzaSy...).', 'INVALID_API_KEY');
     }
     if (err.status === 429 || err.message?.includes('RESOURCE_EXHAUSTED')) {
-      return ApiError.badRequest('Gemini API rate limit exceeded. Please try again shortly.', 'RATE_LIMITED');
+      throw ApiError.badRequest('Gemini API rate limit exceeded. Please try again shortly.', 'RATE_LIMITED');
     }
 
     console.error('Gemini Service Error:', err.message);
