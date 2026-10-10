@@ -97,6 +97,20 @@ router.get('/run-unit-tests', async (req, res) => {
 });
 
 /**
+ * GET /api/run-cors-tests
+ * Runs the comprehensive CORS & Preflight verification test suite.
+ */
+router.get('/run-cors-tests', async (req, res) => {
+  try {
+    const { runCorsTests } = await import(`../../test/cors.test.js?t=${Date.now()}`);
+    const results = await runCorsTests();
+    return res.status(results.success ? 200 : 500).json(results);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message, stack: err.stack });
+  }
+});
+
+/**
  * GET /api/reindex-kb
  * Reindexes all documents in kb/documents into the vector store.
  */

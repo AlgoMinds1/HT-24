@@ -1,5 +1,6 @@
 import { ApiError } from '../utils/api-error.js';
 import { env } from '../config/env.js';
+import { isOriginAllowed } from '../config/cors.js';
 
 /**
  * Central Express Error-Handling Middleware
@@ -8,6 +9,14 @@ export function errorHandlerMiddleware(err, req, res, next) {
   // If response headers already sent, delegate to default Express handler
   if (res.headersSent) {
     return next(err);
+  }
+
+  // Ensure CORS headers are attached to error responses for permitted origins
+  const origin = req.headers?.origin;
+  if (origin && isOriginAllowed(origin) && !res.getHeader('Access-Control-Allow-Origin')) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
   }
 
   // Handle malformed JSON request bodies from express.json()
