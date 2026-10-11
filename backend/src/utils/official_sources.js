@@ -38,23 +38,51 @@ export const OFFICIAL_DOMAINS = [
 ];
 
 export const AUTHORITATIVE_NEWS_DOMAINS = [
+  // National Broadcasters & News Agencies
   'newsonair.gov.in',
+  'ani.in',
+  'pti.in',
+
+  // Verified Indian Fact-Checkers (IFCN Certified & Leading Debunking Portals)
+  'altnews.in',
+  'boomlive.in',
+  'factly.in',
+  'vishvasnews.com',
+  'newschecker.in',
+  'thelogicalindian.com',
+  'thip.media',
+  'thequint.com',
+  'quint.com',
+  'smhoax.com',
+
+  // Major Indian Daily News & Broadcasters
   'thehindu.com',
   'ndtv.com',
   'timesofindia.indiatimes.com',
-  'bbc.com',
-  'bbc.co.uk',
-  'reuters.com',
   'indianexpress.com',
   'hindustantimes.com',
   'indiatoday.in',
-  'wionews.com',
-  'aljazeera.com',
-  'variety.com',
-  'ani.in',
-  'pti.in',
   'theprint.in',
-  'scroll.in'
+  'scroll.in',
+  'wionews.com',
+  'firstpost.com',
+  'dnaindia.com',
+  'deccanherald.com',
+  'telegraphindia.com',
+  'livemint.com',
+
+  // Authoritative International Fact-Checkers & Agencies
+  'bbc.com',
+  'bbc.co.uk',
+  'reuters.com',
+  'apnews.com',
+  'afp.com',
+  'factcheck.afp.com',
+  'snopes.com',
+  'politifact.com',
+  'factcheck.org',
+  'aljazeera.com',
+  'variety.com'
 ];
 
 /**
@@ -273,8 +301,22 @@ export function sanitizeOfficialEvidence(evidenceList = [], claimText = '', verd
             : (isOfficial ? 0.98 : 0.93),
           is_official: isOfficial
         });
-      } else if (rawUrl.length > 5 && (sourceName.toLowerCase().includes('gov') || sourceName.toLowerCase().includes('pib') || sourceName.toLowerCase().includes('rbi') || sourceName.toLowerCase().includes('who') || sourceName.toLowerCase().includes('hindu') || sourceName.toLowerCase().includes('ndtv') || sourceName.toLowerCase().includes('bbc') || sourceName.toLowerCase().includes('air'))) {
-        // Source claims to be official or major news, ensure secure HTTPS protocol
+      } else if (rawUrl.length > 5 && (
+        item.is_fact_check ||
+        sourceName.toLowerCase().includes('gov') ||
+        sourceName.toLowerCase().includes('pib') ||
+        sourceName.toLowerCase().includes('rbi') ||
+        sourceName.toLowerCase().includes('who') ||
+        sourceName.toLowerCase().includes('hindu') ||
+        sourceName.toLowerCase().includes('ndtv') ||
+        sourceName.toLowerCase().includes('bbc') ||
+        sourceName.toLowerCase().includes('air') ||
+        sourceName.toLowerCase().includes('fact') ||
+        sourceName.toLowerCase().includes('boom') ||
+        sourceName.toLowerCase().includes('alt') ||
+        sourceName.toLowerCase().includes('news')
+      )) {
+        // Source claims to be official, verified fact-check, or major news; ensure secure HTTPS protocol
         const safeUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
         sanitized.push({
           source_name: sourceName,
@@ -282,10 +324,11 @@ export function sanitizeOfficialEvidence(evidenceList = [], claimText = '', verd
           published_date: item.published_date || undefined,
           stance,
           excerpt,
-          reliability_score: 0.93,
+          reliability_score: item.reliability_score || (isOfficial ? 0.98 : 0.93),
           is_official: isOfficialWebsite(safeUrl)
         });
       }
+
     }
   }
 

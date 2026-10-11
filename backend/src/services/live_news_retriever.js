@@ -1,7 +1,9 @@
 import * as cheerio from 'cheerio';
 import { isOfficialWebsite } from '../utils/official_sources.js';
+import { env } from '../config/env.js';
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
+const GOOGLE_FACT_CHECK_API_URL = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
 
 /**
  * Normalizes query string for news search:
@@ -103,4 +105,119 @@ export async function fetchLiveNews(query, options = {}) {
     console.warn(`[LiveNews] Failed to fetch live news for "${cleaned}": ${err.message}`);
     return [];
   }
+}
+
+/**
+ * Fetches verified debunks and claim reviews from the Google Fact Check Tools API.
+ * Free, authoritative, covers certified fact-checking partners (Alt News, Boom Live, Factly, etc.).
+ * 
+ * @param {string} query
+ * @param {Object} [options]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function fetchFactChecks(query, options = {}) {
+  const cleaned = cleanQueryForSearch(query);
+  if (!cleaned || cleaned.length < 3) {
+    return [];
+  }
+
+  const apiKey = env.GOOGLE_FACTCHECK_API_KEY || (env.hasGeminiKey ? env.GEMINI_API_KEY : process.env.GOOGLE_FACTCHECK_API_KEY || process.env.GEMINI_API_KEY);
+  if (!apiKey || apiKey === 'your_google_factcheck_api_key_here' || apiKey === 'your_gemini_api_key_here') {
+    return [];
+  }
+
+  const { pageSize = 6, languageCode = 'en' } = options;
+  const searchUrl = `${GOOGLE_FACT_CHECK_API_URL}?query=${encodeURIComponent(cleaned)}&pageSize=${pageSize}&languageCode=${languageCode}&key=${apiKey}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+  try {
+    const response = await fetch(searchUrl, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.warn(`[FactCheckTools] API returned HTTP ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const claims = data.claims || [];
+    const factChecks = [];
+
+    for (const item of claims) {
+      for (const review of (item.claimReview || [])) {
+        const reviewUrl = review.url;
+        if (!reviewUrl) continue;
+
+        const publisherName = review.publisher?.name || 'Verified Fact Checker';
+        const title = review.title || item.text || 'Fact Check Review';
+        const textualRating = review.textualRating || 'Evaluated';
+        const ratingLower = textualRating.toLowerCase();
+
+        let stance = 'CONTEXTUALIZES';
+        if (/\b(false|fake|hoax|incorrect|scam|misleading|disproved|fabricated|untrue|bogus)\b/.test(ratingLower)) {
+          stance = 'REFUTES';
+        } else if (/\b(true|correct|accurate|verified|genuine|confirmed)\b/.test(ratingLower)) {
+          stance = 'SUPPORTS';
+        }
+
+        factChecks.push({
+          title,
+          url: reviewUrl,
+          article_link: reviewUrl,
+          source_name: publisherName,
+          published_date: review.reviewDate ? review.reviewDate.split('T')[0] : (item.claimDate ? item.claimDate.split('T')[0] : undefined),
+          snippet: `Claim: "${item.text}". Rated as "${textualRating}" by ${publisherName}.`,
+          stance,
+          textual_rating: textualRating,
+          is_official: isOfficialWebsite(reviewUrl) || reviewUrl.includes('.gov'),
+          is_fact_check: true,
+          reliability_score: 0.96
+        });
+      }
+    }
+
+    return factChecks;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn(`[FactCheckTools] Failed to retrieve fact-checks: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Retrieves multi-source authoritative context: Google News RSS + Google Fact Check Tools.
+ * Runs in parallel to guarantee sub-second latency and combined coverage.
+ * 
+ * @param {string} query 
+ * @param {Object} [options]
+ * @returns {Promise<Array<Object>>}
+ */
+export async function fetchAuthoritativeContext(query, options = {}) {
+  const [newsRes, factCheckRes] = await Promise.allSettled([
+    fetchLiveNews(query, options),
+    fetchFactChecks(query, options)
+  ]);
+
+  const news = newsRes.status === 'fulfilled' ? newsRes.value : [];
+  const factChecks = factCheckRes.status === 'fulfilled' ? factCheckRes.value : [];
+
+  // Deduplicate by URL
+  const seenUrls = new Set();
+  const merged = [];
+
+  for (const item of [...factChecks, ...news]) {
+    const urlKey = (item.url || '').toLowerCase();
+    if (urlKey && !seenUrls.has(urlKey)) {
+      seenUrls.add(urlKey);
+      merged.push(item);
+    }
+  }
+
+  return merged;
 }

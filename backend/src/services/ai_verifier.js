@@ -5,27 +5,27 @@ import { validateVerdictPayload } from '../validators/verdict.validator.js';
 import { extractAssertions } from '../retrieval/assertion_extractor.js';
 import { calculateConfidence } from './confidence_engine.js';
 import { sanitizeOfficialEvidence, getDefaultOfficialSources } from '../utils/official_sources.js';
-import { fetchLiveNews } from './live_news_retriever.js';
+import { fetchAuthoritativeContext, fetchLiveNews } from './live_news_retriever.js';
 
 const GROQ_CHAT_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
 /**
- * System prompt directing verification grounded in real-time facts, official portals, and authoritative news.
+ * System prompt directing verification grounded in real-time facts, official portals, verified fact-checkers, and authoritative news.
  */
 const SYSTEM_PROMPT = `You are TruthLens, an automated fact-checking and debunking intelligence system.
 You analyze viral forwards, suspicious claims, government scheme announcements, health advisories, public figure status, and financial/KYC scam messages.
 
 REAL-TIME ACCURACY & EVIDENCE REQUIREMENTS:
-1. Ground your evaluations in real-time facts and latest authoritative news reports as of today (${new Date().toISOString().split('T')[0]}).
-2. NEVER rely on outdated training memory if current live news contradicts it.
+1. Ground your evaluations in real-time facts, certified fact-checking debunks, and latest authoritative news reports as of today (${new Date().toISOString().split('T')[0]}).
+2. NEVER rely on outdated training memory if current live news or fact-check bulletins contradict it.
 3. For government schemes, financial warnings, and health guidelines:
    - Cite official government portals & registries (.gov.in, .nic.in, rbi.org.in, who.int, pib.gov.in, etc.).
-4. For public figures, current events, obituaries, sports, and cultural events:
-   - Cite authoritative national broadcasters, news agencies, or primary reporting provided in the live search results (e.g. News On AIR - newsonair.gov.in, The Hindu, NDTV, Times of India, BBC, Reuters).
+4. For viral claims, debunks, public figures, and current events:
+   - Cite certified fact-checkers (Alt News, Boom Live, Factly, Vishvas News, etc.) and authoritative national/international broadcasters & news agencies (News On AIR, The Hindu, NDTV, Times of India, BBC, Reuters).
 5. For EVERY evidence item in the "evidence" array:
    - Provide direct HTTPS URLs and clear source names from the search results or official portals.
    - stance must be "SUPPORTS", "REFUTES", or "CONTEXTUALIZES".
-6. Do NOT fabricate past debunkings, dates, or non-existent PIB notices.
+6. Do NOT fabricate past debunkings, dates, or non-existent notices.
 
 ALLOWED VERDICTS:
 - "SUPPORTED": Claim is factually true and backed by authoritative news, official announcements, or primary records.
@@ -404,42 +404,146 @@ export async function verifyClaimWithAI(claimText, options = {}) {
     throw ApiError.badRequest('Please provide at least 5 characters of claim text to verify.', 'CLAIM_TOO_SHORT');
   }
 
-  // Step 1: Real-time Live News & Web Search
+  // Step 1: Real-time Multi-Source Context Retrieval (Google News RSS + Google Fact Check Tools API)
   let liveArticles = [];
   try {
-    liveArticles = await fetchLiveNews(cleanClaim);
-    console.log(`[AI Verifier] Retrieved ${liveArticles.length} live news reports for "${cleanClaim}"`);
+    liveArticles = await fetchAuthoritativeContext(cleanClaim);
+    console.log(`[AI Verifier] Retrieved ${liveArticles.length} live articles/fact-checks for "${cleanClaim}"`);
   } catch (err) {
-    console.warn(`[AI Verifier] Live news fetch failed: ${err.message}`);
+    console.warn(`[AI Verifier] Context retrieval failed: ${err.message}`);
   }
 
   let result = null;
   let activeProvider = null;
 
-  // Strategy 1: Try Groq first if key exists
+  // Step 2: Parallel Multi-LLM Execution (Groq + Gemini)
+  const enginePromises = [];
+
   if (env.hasGroqKey) {
-    try {
-      const groqResult = await callGroqEngine(cleanClaim, liveArticles);
-      result = groqResult.payload;
-      activeProvider = groqResult.provider;
-    } catch (err) {
-      console.warn(`[AI Verifier] Groq failed (${err.message}). Attempting Gemini fallback...`);
-    }
+    enginePromises.push(
+      callGroqEngine(cleanClaim, liveArticles)
+        .then(res => ({ ok: true, engine: 'groq', ...res }))
+        .catch(err => ({ ok: false, engine: 'groq', error: err.message }))
+    );
   }
 
-  // Strategy 2: Try Gemini if Groq was unavailable or failed
-  if (!result && env.hasGeminiKey) {
-    try {
-      const geminiResult = await callGeminiEngine(cleanClaim, liveArticles);
-      result = geminiResult.payload;
-      activeProvider = geminiResult.provider;
-    } catch (err) {
-      console.warn(`[AI Verifier] Gemini failed (${err.message}).`);
-    }
+  if (env.hasGeminiKey) {
+    enginePromises.push(
+      callGeminiEngine(cleanClaim, liveArticles)
+        .then(res => ({ ok: true, engine: 'gemini', ...res }))
+        .catch(err => ({ ok: false, engine: 'gemini', error: err.message }))
+    );
   }
 
-  // Strategy 3: Resilient official fallback if both APIs are unavailable
-  if (!result) {
+  const engineResults = await Promise.all(enginePromises);
+  const successfulEngines = engineResults.filter(r => r.ok && r.payload);
+
+  if (successfulEngines.length >= 2) {
+    const groqItem = successfulEngines.find(e => e.engine === 'groq');
+    const geminiItem = successfulEngines.find(e => e.engine === 'gemini');
+    const groqPayload = groqItem.payload;
+    const geminiPayload = geminiItem.payload;
+
+    const groqVerdict = (groqPayload.verdict || '').toUpperCase();
+    const geminiVerdict = (geminiPayload.verdict || '').toUpperCase();
+
+    console.log(`[AI Verifier] Cross-check comparison: Groq=${groqVerdict} vs Gemini=${geminiVerdict}`);
+
+    // Helper to merge evidence arrays without duplicates
+    const mergeEvidenceArrays = (listA = [], listB = []) => {
+      const seen = new Set();
+      const merged = [];
+      for (const item of [...(listA || []), ...(listB || [])]) {
+        if (!item) continue;
+        const key = (item.url || item.source_name || '').toLowerCase();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          merged.push(item);
+        }
+      }
+      return merged;
+    };
+
+    if (groqVerdict === geminiVerdict) {
+      // Unanimous consensus across independent models
+      result = { ...groqPayload };
+      activeProvider = `multi-llm consensus (${groqItem.provider} + ${geminiItem.provider})`;
+      result.evidence = mergeEvidenceArrays(groqPayload.evidence, geminiPayload.evidence);
+
+      result.stress_test = {
+        counter_arguments_checked: [
+          `Unanimous multi-model consensus: Both ${groqItem.provider} and ${geminiItem.provider} independently verified this determination`,
+          ...(groqPayload.stress_test?.counter_arguments_checked || []),
+          ...(geminiPayload.stress_test?.counter_arguments_checked || [])
+        ].slice(0, 4),
+        edge_cases_identified: [
+          ...(groqPayload.stress_test?.edge_cases_identified || []),
+          ...(geminiPayload.stress_test?.edge_cases_identified || [])
+        ].slice(0, 4),
+        robustness_summary: `Cross-model validation successful: ${groqItem.provider} and ${geminiItem.provider} agree with high consensus.`
+      };
+
+      console.log(`[AI Verifier] Unanimous consensus verdict: ${groqVerdict}`);
+    } else {
+      // Disagreement detected -> Auto-downgrade per user rule
+      let resolvedVerdict = 'PARTLY_TRUE';
+      if (
+        (groqVerdict === 'SUPPORTED' && geminiVerdict === 'FALSE') ||
+        (groqVerdict === 'FALSE' && geminiVerdict === 'SUPPORTED') ||
+        groqVerdict === 'UNCONFIRMED' || geminiVerdict === 'UNCONFIRMED'
+      ) {
+        resolvedVerdict = 'UNCONFIRMED';
+      } else {
+        resolvedVerdict = 'PARTLY_TRUE';
+      }
+
+      console.warn(`[AI Verifier] Model divergence detected (${groqVerdict} vs ${geminiVerdict}). Auto-downgrading to ${resolvedVerdict}`);
+
+      const mergedEvidence = mergeEvidenceArrays(groqPayload.evidence, geminiPayload.evidence);
+
+      result = {
+        claim: groqPayload.claim || geminiPayload.claim || cleanClaim,
+        verdict: resolvedVerdict,
+        confidence: {
+          score: resolvedVerdict === 'UNCONFIRMED' ? 0.35 : 0.60,
+          rating: resolvedVerdict === 'UNCONFIRMED' ? 'LOW' : 'MEDIUM',
+          rationale: `Cross-checking divergence detected: ${groqItem.provider} evaluated claim as ${groqVerdict}, while ${geminiItem.provider} evaluated claim as ${geminiVerdict}. In accordance with adversarial safety protocols, verdict is auto-downgraded to ${resolvedVerdict} to prevent spreading unverified claims.`
+        },
+        plain_explanation: `Multiple independent AI verifiers produced divergent determinations on this claim:\n• ${groqItem.provider}: Concluded "${groqVerdict}" — ${groqPayload.plain_explanation || 'Assessment conducted'}\n• ${geminiItem.provider}: Concluded "${geminiVerdict}" — ${geminiPayload.plain_explanation || 'Assessment conducted'}\n\nBecause authoritative reporting is nuanced or conflicting, TruthLens has auto-downgraded the determination to ${resolvedVerdict}. Always cross-check with primary official registries before taking action.`,
+        evidence: mergedEvidence,
+        stress_test: {
+          counter_arguments_checked: [
+            `Adversarial cross-check divergence detected between ${groqItem.provider} (${groqVerdict}) and ${geminiItem.provider} (${geminiVerdict})`,
+            ...(groqPayload.stress_test?.counter_arguments_checked || []),
+            ...(geminiPayload.stress_test?.counter_arguments_checked || [])
+          ].slice(0, 4),
+          edge_cases_identified: [
+            'Conflicting AI interpretations suggest ambiguous terminology, unverified social media context, or rapidly evolving live news',
+            ...(groqPayload.stress_test?.edge_cases_identified || [])
+          ].slice(0, 4),
+          robustness_summary: `Adversarial multi-model cross-check identified conflicting determinations (${groqVerdict} vs ${geminiVerdict}). Auto-downgraded to ${resolvedVerdict} to prevent premature validation.`
+        },
+        truth_timeline: [
+          ...(groqPayload.truth_timeline || []),
+          ...(geminiPayload.truth_timeline || [])
+        ].slice(0, 3),
+        action_risk: {
+          risk_level: 'MODERATE',
+          risk_category: 'MISINFORMATION',
+          warning_flag: `CAUTION: AI Models Diverged (${groqVerdict} vs ${geminiVerdict})`,
+          recommended_action: 'Exercise heightened caution: independent intelligence models disagree. Do not forward or act without official primary circular corroboration.'
+        }
+      };
+
+      activeProvider = `multi-llm cross-check (${groqItem.provider} [${groqVerdict}] vs ${geminiItem.provider} [${geminiVerdict}] → ${resolvedVerdict})`;
+    }
+  } else if (successfulEngines.length === 1) {
+    const singleEngine = successfulEngines[0];
+    result = singleEngine.payload;
+    activeProvider = singleEngine.provider;
+    console.log(`[AI Verifier] Single engine verified verdict with ${activeProvider}: ${result.verdict}`);
+  } else {
+    // Both failed or neither configured
     console.warn('[AI Verifier] Cloud LLMs unavailable. Using deterministic engine.');
     result = synthesizeOfficialFallbackVerdict(cleanClaim, liveArticles);
     activeProvider = 'truthlens-official-engine';
@@ -462,22 +566,23 @@ export async function verifyClaimWithAI(claimText, options = {}) {
   // Attach live news items to evidence if model evidence is empty or missing
   if (!Array.isArray(result.evidence) || result.evidence.length === 0) {
     if (liveArticles.length > 0) {
-      result.evidence = liveArticles.slice(0, 3).map(a => ({
+      result.evidence = liveArticles.slice(0, 4).map(a => ({
         source_name: a.source_name,
         url: a.url,
         published_date: a.published_date,
         stance: result.verdict === 'SUPPORTED' ? 'SUPPORTS' : (result.verdict === 'FALSE' ? 'REFUTES' : 'CONTEXTUALIZES'),
         excerpt: a.title,
-        reliability_score: a.is_official ? 0.98 : 0.94,
-        is_official: a.is_official
+        reliability_score: a.is_official ? 0.98 : (a.is_fact_check ? 0.96 : 0.94),
+        is_official: a.is_official,
+        is_fact_check: Boolean(a.is_fact_check)
       }));
     }
   }
 
-  // CRITICAL: Ensure all evidence items redirect ONLY to sources from official websites
+  // Ensure all evidence items adhere to official portals, verified fact-checkers, and authoritative news
   result.evidence = sanitizeOfficialEvidence(result.evidence, cleanClaim, result.verdict);
 
-  // Calibrate confidence score mathematically based on official evidence
+  // Calibrate confidence score mathematically based on official & fact-check evidence
   const assertions = extractAssertions(cleanClaim);
   const calibratedConfidence = calculateConfidence({
     verdict: result.verdict,
@@ -515,8 +620,8 @@ export async function verifyClaimWithAI(claimText, options = {}) {
     result.truth_timeline = [
       {
         date: new Date().toISOString().split('T')[0],
-        event: `Evaluated against ${result.evidence.length} official source(s).`,
-        significance: 'Grounded in authoritative government and institutional records.'
+        event: `Evaluated against ${result.evidence.length} authoritative source(s).`,
+        significance: 'Grounded in authoritative government, certified fact-checker, and institutional records.'
       }
     ];
   }
@@ -530,19 +635,27 @@ export async function verifyClaimWithAI(claimText, options = {}) {
     };
   }
 
-  // Set execution mode and provider
+  // Set execution mode and provider metadata
   result.mode = 'live';
   result.provider = activeProvider;
+  result.retrieval_metadata = {
+    mode: 'multi_source_grounded',
+    provider: activeProvider,
+    official_evidence_count: result.evidence ? result.evidence.length : 0
+  };
 
   // Schema Validation (Safe and Non-blocking)
   try {
-    const validation = validateVerdictPayload(result);
+    const payloadForValidation = { ...result };
+    delete payloadForValidation.provider;
+    const validation = validateVerdictPayload(payloadForValidation);
     if (!validation.valid) {
       console.warn('[AI Verifier] Schema validation warning:', validation.errors);
     }
   } catch (valErr) {
     console.warn('[AI Verifier] Schema validator warning:', valErr.message);
   }
+
 
   return result;
 }

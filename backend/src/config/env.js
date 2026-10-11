@@ -45,6 +45,8 @@ export function getEnvConfig() {
   ].filter((m, i, arr) => arr.indexOf(m) === i);
   const GROQ_AUDIO_MODEL = process.env.GROQ_AUDIO_MODEL || 'whisper-large-v3';
 
+  const GOOGLE_FACTCHECK_API_KEY = process.env.GOOGLE_FACTCHECK_API_KEY || (process.env.GEMINI_API_KEY || '');
+
   // Do not fail startup if running in mock/offline test environments unless explicitly required
   return {
     PORT,
@@ -60,8 +62,11 @@ export function getEnvConfig() {
     GROQ_FALLBACK_MODELS,
     GROQ_VISION_MODEL,
     GROQ_AUDIO_MODEL,
-    hasGroqKey: Boolean(GROQ_API_KEY && GROQ_API_KEY !== 'your_groq_api_key_here' && GROQ_API_KEY.trim().length > 0)
+    hasGroqKey: Boolean(GROQ_API_KEY && GROQ_API_KEY !== 'your_groq_api_key_here' && GROQ_API_KEY.trim().length > 0),
+    GOOGLE_FACTCHECK_API_KEY,
+    hasFactCheckKey: Boolean(GOOGLE_FACTCHECK_API_KEY && GOOGLE_FACTCHECK_API_KEY !== 'your_google_factcheck_api_key_here' && GOOGLE_FACTCHECK_API_KEY.trim().length > 0)
   };
 }
 
 export const env = getEnvConfig();
+
