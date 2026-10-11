@@ -304,6 +304,11 @@ export function synthesizeFallbackVerdict(claimText, verifiedEvidence = []) {
  * @returns {Promise<Object>} Verified verdict payload conforming to verdict.schema.json
  */
 export async function verifyTextWithGroq(textClaim, verifiedEvidence = []) {
+  const { verifyClaimWithAI } = await import('./ai_verifier.js');
+  return verifyClaimWithAI(textClaim);
+}
+
+export async function _originalVerifyTextWithGroq(textClaim, verifiedEvidence = []) {
   if (!env.hasGroqKey) {
     console.warn('[Groq] GROQ_API_KEY is not configured. Falling back to grounded retrieval synthesis.');
     return synthesizeFallbackVerdict(textClaim, verifiedEvidence);

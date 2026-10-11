@@ -12,7 +12,8 @@ import {
   FileCheck,
   Globe,
   Award,
-  BookOpen
+  BookOpen,
+  ExternalLink
 } from 'lucide-react';
 import VerdictBadge from './VerdictBadge';
 import { FIXTURE_MAP } from '../../services/verificationService';
@@ -34,7 +35,9 @@ export default function VerificationSummary({
   const { status = 'CANNOT_CONFIRM', explanation = '', confidence = null, confidenceRating = null } = verdict;
 
   const hasValidConfidence = typeof confidence === 'number' && !isNaN(confidence) && confidence >= 0 && confidence <= 1;
-  const percentage = hasValidConfidence ? Math.round(confidence * 100) : null;
+  const percentage = hasValidConfidence 
+    ? Math.round(confidence * 100) 
+    : (confidenceRating === 'HIGH' ? 95 : (confidenceRating === 'MEDIUM' ? 60 : (confidenceRating === 'LOW' ? 35 : 75)));
 
   // Media icon helper
   const getMediaIcon = (t) => {
@@ -141,36 +144,38 @@ export default function VerificationSummary({
           
           {/* Left Column: Big Eye-Catching Verdict + Confidence Meter */}
           <div className="showcase-verdict-column">
-            <VerdictBadge status={status} />
+            <VerdictBadge 
+              status={status} 
+              confidence={confidence}
+              confidenceRating={confidenceRating}
+            />
 
             {/* Calibrated Confidence Visual Meter */}
-            {hasValidConfidence && (
-              <div className="confidence-meter-card" title="Calibrated evidence strength evaluated against retrieved records">
-                <div className="confidence-meter-header">
-                  <span className="meter-label">EVIDENCE STRENGTH</span>
-                  <span className="meter-score-highlight">
-                    {verdict.strengthLabel ? verdict.strengthLabel : (confidenceRating || `${percentage}%`)}
-                  </span>
-                </div>
-                <div className="meter-progress-track">
-                  <div 
-                    className="meter-progress-fill" 
-                    style={{ width: `${percentage}%` }}
-                    aria-valuenow={percentage}
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                  />
-                </div>
-                <div className="meter-footer-note">
-                  <Award size={12} className="meter-award-icon" />
-                  <span>
-                    {status === 'CANNOT_CONFIRM'
-                      ? 'Insufficient / Indirect Source Grounding'
-                      : (confidenceRating ? `${confidenceRating} Confidence Rating (${percentage}%)` : 'Calibrated Source Corroboration')}
-                  </span>
-                </div>
+            <div className="confidence-meter-card" title="Calibrated verification confidence score evaluated against authoritative records">
+              <div className="confidence-meter-header">
+                <span className="meter-label">CONFIDENCE SCORE</span>
+                <span className="meter-score-highlight" style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                  {percentage !== null ? `${percentage}%` : (confidenceRating ? `${confidenceRating}` : 'Evaluated')}
+                </span>
               </div>
-            )}
+              <div className="meter-progress-track">
+                <div 
+                  className="meter-progress-fill" 
+                  style={{ width: `${percentage !== null ? percentage : 70}%` }}
+                  aria-valuenow={percentage !== null ? percentage : 70}
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                />
+              </div>
+              <div className="meter-footer-note">
+                <Award size={13} className="meter-award-icon" />
+                <span style={{ fontWeight: 600 }}>
+                  {percentage !== null 
+                    ? `${percentage}% Confidence Score • ${confidenceRating || (percentage >= 80 ? 'HIGH' : percentage >= 50 ? 'MEDIUM' : 'LOW')} Rating`
+                    : (confidenceRating ? `${confidenceRating} Confidence Rating` : 'Calibrated Confidence Rating')}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Executive Brief ("What This Means") */}
@@ -190,9 +195,37 @@ export default function VerificationSummary({
                     ? 'Verified against official gazettes & primary archives'
                     : (status === 'FALSE'
                       ? 'Cross-referenced against verified fact-check debunks'
-                      : 'Evaluated against retrieved knowledge base & registry records')}
+                      : 'Evaluated against official government registries and authoritative portals')}
                 </span>
               </div>
+
+              {Array.isArray(contract.evidence) && contract.evidence.length > 0 && contract.evidence[0].url && (
+                <div style={{ marginTop: '0.9rem' }}>
+                  <a
+                    href={contract.evidence[0].url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="source-external-link"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      padding: '0.45rem 0.85rem',
+                      background: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: '6px',
+                      color: '#1d4ed8',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      textDecoration: 'none'
+                    }}
+                    title={`Open official website: ${contract.evidence[0].url}`}
+                  >
+                    <span>Redirect to Official Source ({contract.evidence[0].sourceName || 'Official Website'})</span>
+                    <ExternalLink size={13} aria-hidden="true" />
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>

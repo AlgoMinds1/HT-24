@@ -59,10 +59,19 @@ export const VERDICT_DISPLAY_MAP = {
  * Eye-Catching Hero Verdict Badge Component
  * Features large typography, glowing icon halo, status tag, and explanatory subtitle.
  */
-export default function VerdictBadge({ status = 'CANNOT_CONFIRM', customLabel = null }) {
+export default function VerdictBadge({ 
+  status = 'CANNOT_CONFIRM', 
+  customLabel = null,
+  confidence = null,
+  confidenceRating = null 
+}) {
   const config = VERDICT_DISPLAY_MAP[status] || VERDICT_DISPLAY_MAP.CANNOT_CONFIRM;
   const IconComponent = config.icon;
   const labelToDisplay = customLabel || config.label;
+
+  const numericPercent = typeof confidence === 'number' && !isNaN(confidence)
+    ? (confidence <= 1 ? Math.round(confidence * 100) : Math.round(confidence))
+    : (confidenceRating === 'HIGH' ? 95 : (confidenceRating === 'MEDIUM' ? 60 : (confidenceRating === 'LOW' ? 35 : null)));
 
   return (
     <div className={`verdict-hero-badge ${config.className}`} role="status">
@@ -70,7 +79,30 @@ export default function VerdictBadge({ status = 'CANNOT_CONFIRM', customLabel = 
         <div className="verdict-hero-icon-halo">
           <IconComponent size={28} strokeWidth={2.4} aria-hidden="true" />
         </div>
-        <span className="verdict-hero-status-tag">{config.statusTag}</span>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="verdict-hero-status-tag">{config.statusTag}</span>
+          {numericPercent !== null && (
+            <span 
+              className="verdict-hero-confidence-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '0.2rem 0.55rem',
+                borderRadius: '9999px',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                background: 'rgba(255, 255, 255, 0.95)',
+                color: config.accentColor,
+                border: `1px solid ${config.accentColor}33`,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.06)'
+              }}
+              title="Calibrated Verification Confidence Score"
+            >
+              {numericPercent}% Confidence {confidenceRating ? `(${confidenceRating})` : ''}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="verdict-hero-text-block">

@@ -93,10 +93,11 @@ async function callGeminiWithRetry(fn, retries = 3, delayMs = 1500) {
  * @returns {Promise<Object>} Verified verdict payload conforming to verdict.schema.json
  */
 export async function verifyTextWithGemini(textClaim, verifiedEvidence = []) {
-  if (env.hasGroqKey) {
-    const { verifyTextWithGroq } = await import('./groq.service.js');
-    return verifyTextWithGroq(textClaim, verifiedEvidence);
-  }
+  const { verifyClaimWithAI } = await import('./ai_verifier.js');
+  return verifyClaimWithAI(textClaim);
+}
+
+export async function _originalVerifyTextWithGemini(textClaim, verifiedEvidence = []) {
 
   if (!env.hasGeminiKey) {
     console.warn('[Gemini] GEMINI_API_KEY is not configured or placeholder. Using grounded retrieval synthesis.');

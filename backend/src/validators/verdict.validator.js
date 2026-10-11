@@ -41,7 +41,10 @@ function getValidator() {
     allErrors: true,
     strict: false
   });
-  addFormats(ajvInstance);
+  const addFormatsFn = typeof addFormats === 'function' ? addFormats : (addFormats && addFormats.default ? addFormats.default : null);
+  if (typeof addFormatsFn === 'function') {
+    addFormatsFn(ajvInstance);
+  }
 
   validateVerdictFn = ajvInstance.compile(schemaContent);
   return validateVerdictFn;

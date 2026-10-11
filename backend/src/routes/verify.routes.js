@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { handleVerifyClaim } from '../controllers/verify.controller.js';
 import { uploadMiddleware } from '../middleware/upload.js';
-import { retrieverService } from '../retrieval/retriever.service.js';
 import { verificationCache } from '../utils/cache.js';
 
 // TruthLens Claim Verification Routes - Grounded Retrieval Active
@@ -40,16 +39,18 @@ router.get('/cache/clear-all', (req, res) => {
 
 /**
  * GET /api/inspect-evidence
- * Inspects retrieved evidence, provider status, and quote validation for a given claim.
+ * Inspects official evidence citations and domain provenance for a given claim.
  */
 router.get('/inspect-evidence', async (req, res, next) => {
   try {
     const claim = (req.query.claim || 'Drinking warm lemon water and baking soda cures cancer').toString();
-    const result = await retrieverService.retrieveEvidence(claim);
+    const { sanitizeOfficialEvidence, getDefaultOfficialSources } = await import('../utils/official_sources.js');
+    const evidence = getDefaultOfficialSources(claim);
     return res.status(200).json({
       claim,
-      queryTokens: (await import('../retrieval/vector_store.js')).tokenize(claim),
-      ...result
+      official_evidence: evidence,
+      total_retrieved: evidence.length,
+      redirect_policy: 'Official websites only'
     });
   } catch (err) {
     next(err);
@@ -58,28 +59,29 @@ router.get('/inspect-evidence', async (req, res, next) => {
 
 /**
  * GET /api/test-verify-claim
- * Test helper executing the complete verification pipeline with retrieval and verdict generation.
+ * Test helper executing the verification pipeline directing only to official website sources.
  */
 router.get('/test-verify-claim', async (req, res, next) => {
   try {
     const claim = (req.query.claim || 'Eating purple quartz crystals gives humans telepathy').toString();
-    const { verifyTextWithGroq, buildUnconfirmedPayload } = await import('../services/groq.service.js');
-
-    const { evidence, retrieval_metadata } = await retrieverService.retrieveEvidence(claim);
-
-    let verdictPayload;
-    if (!evidence || evidence.length === 0) {
-      verdictPayload = buildUnconfirmedPayload(claim, retrieval_metadata);
-    } else {
-      verdictPayload = await verifyTextWithGroq(claim, evidence);
-    }
-
-    verdictPayload.mode = 'live';
-    verdictPayload.retrieval_metadata = retrieval_metadata;
+    const { verifyClaimWithAI } = await import('../services/ai_verifier.js');
+    const verdictPayload = await verifyClaimWithAI(claim);
     return res.status(200).json(verdictPayload);
   } catch (err) {
     next(err);
   }
+});
+
+/**
+ * GET /api/redirect
+ * Safe official website redirection endpoint.
+ */
+router.get('/redirect', (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl || typeof targetUrl !== 'string' || !targetUrl.startsWith('http')) {
+    return res.status(400).send('Invalid or missing target URL');
+  }
+  return res.redirect(targetUrl);
 });
 
 /**

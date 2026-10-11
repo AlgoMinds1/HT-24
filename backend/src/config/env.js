@@ -19,21 +19,25 @@ export function getEnvConfig() {
   const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'https://ht-24.vercel.app,http://localhost:5173';
   const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '90000', 10);
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const GEMINI_FALLBACK_MODELS = [
-    GEMINI_MODEL,
+    'gemini-2.5-flash',
+    'gemini-flash-latest',
     'gemini-3.8-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash'
-  ].filter((m, i, arr) => arr.indexOf(m) === i);
+    'gemini-2.5-pro',
+    GEMINI_MODEL
+  ].filter((m, i, arr) => arr.indexOf(m) === i && m);
 
   const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-  const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const GROQ_MODEL = process.env.GROQ_MODEL && process.env.GROQ_MODEL !== 'llama-3.3-70b-versatile'
+    ? process.env.GROQ_MODEL
+    : 'openai/gpt-oss-120b';
   const GROQ_FALLBACK_MODELS = [
     GROQ_MODEL,
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant'
-  ].filter((m, i, arr) => arr.indexOf(m) === i);
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'qwen/qwen3.8-27b'
+  ].filter((m, i, arr) => arr.indexOf(m) === i && m);
   const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b';
   const GROQ_VISION_FALLBACK_MODELS = [
     GROQ_VISION_MODEL,

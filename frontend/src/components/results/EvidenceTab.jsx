@@ -47,10 +47,10 @@ export default function EvidenceTab({ contract }) {
       <div className="tab-section-header">
         <div className="tab-header-text">
           <h3 className="tab-section-title">
-            Retrieved Authoritative Evidence ({safeEvidence.length})
+            Official Sources & Government Portals ({safeEvidence.length})
           </h3>
           <p className="tab-section-subtitle">
-            Source citations extracted from curated knowledge bases, gazettes, and fact-checking registries.
+            Authoritative citations directing exclusively to official government portals, regulatory registries, and primary public authorities.
           </p>
         </div>
 

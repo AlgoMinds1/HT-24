@@ -1,13 +1,12 @@
 import { validateVerificationRequest } from '../validators/input.validator.js';
 import { ingestInput } from '../ingest/index.js';
-import { verifyTextWithGroq, buildUnconfirmedPayload } from '../services/groq.service.js';
-import { retrieverService } from '../retrieval/retriever.service.js';
+import { verifyClaimWithAI } from '../services/ai_verifier.js';
 import { verificationCache, VerificationCache } from '../utils/cache.js';
 
 /**
  * Unified verification controller handling POST /api/verify for all five input types:
  * text, image, audio, pdf, and url.
- * Incorporates In-Memory Caching, Grounded Evidence Retrieval, and UNCONFIRMED constraints.
+ * Uses Groq or Gemini AI intelligence engine and redirects only to sources from official websites.
  */
 export async function handleVerifyClaim(req, res, next) {
   try {
@@ -51,18 +50,11 @@ export async function handleVerifyClaim(req, res, next) {
       });
     }
 
-    // 4. Grounded Evidence Retrieval across Curated KB, Fact Check API, and Search
-    const { evidence, retrieval_metadata } = await retrieverService.retrieveEvidence(claimText);
-
-    let verdictPayload;
-
-    // 5. Strict Epistemic Constraint:
-    // If no useful evidence was found, return UNCONFIRMED. Never present unsupported claims as confirmed.
-    if (!evidence || evidence.length === 0) {
-      verdictPayload = buildUnconfirmedPayload(claimText, retrieval_metadata);
-    } else {
-      verdictPayload = await verifyTextWithGroq(claimText, evidence);
-    }
+    // 4. Verify claim directly using AI (Groq / Gemini) directing only to official website sources (no RAG)
+    const verdictPayload = await verifyClaimWithAI(claimText, {
+      inputType: ingestionResult.inputType,
+      sourcePlatform: ingestionResult.extraction?.sourceUrl || ingestionResult.extraction?.fileName || 'Forwarded Claim'
+    });
 
     // 6. Enrich verdict with multimodal input metadata and extraction artifacts
     verdictPayload.mode = 'live';
@@ -74,9 +66,13 @@ export async function handleVerifyClaim(req, res, next) {
       source_platform: ingestionResult.extraction?.sourceUrl || ingestionResult.extraction?.fileName || 'Multimodal Forward'
     };
 
-    // 7. Attach extraction metadata & retrieval provider status reports
+    // 7. Attach extraction metadata & provider status reports
     verdictPayload.extraction = ingestionResult.extraction;
-    verdictPayload.retrieval_metadata = retrieval_metadata;
+    verdictPayload.retrieval_metadata = {
+      mode: 'official_websites_direct',
+      provider: verdictPayload.provider || 'ai_verifier',
+      official_evidence_count: verdictPayload.evidence ? verdictPayload.evidence.length : 0
+    };
 
     // 8. Cache result for fast replay
     if (cacheKey) {

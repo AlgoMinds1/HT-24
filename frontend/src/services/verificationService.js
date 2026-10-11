@@ -47,9 +47,9 @@ export const FIXTURE_MAP = {
 
 export const ANALYSIS_STEPS = [
   { id: 1, title: 'Extracting claim', description: 'Isolating atomic factual statement from unstructured forward.' },
-  { id: 2, title: 'Synthesizing knowledge', description: 'Querying Groq reasoning engine and verifying factual plausibility.' },
+  { id: 2, title: 'AI Verification', description: 'Cross-referencing claim using Groq & Gemini against official government portals.' },
   { id: 3, title: 'Adversarial stress-test', description: 'Evaluating counter-hypotheses, edge cases, and exploitation risk.' },
-  { id: 4, title: 'Finalizing verdict', description: 'Synthesizing confidence score, plain explanation, and safety actions.' }
+  { id: 4, title: 'Finalizing verdict', description: 'Synthesizing confidence score, plain explanation, and official source links.' }
 ];
 
 /**
@@ -280,8 +280,25 @@ export function buildClientUnconfirmedPayload(rawText) {
       rating: 'LOW',
       rationale: 'No authoritative evidence citations were found in the curated knowledge base to substantiate or refute this custom claim.'
     },
-    plain_explanation: 'This claim cannot be confirmed based on currently indexed authoritative sources. In Demo Fixtures mode, pre-computed evidence exists for canonical demonstration scenarios. For arbitrary external claims, toggle to Live AI Mode with a connected reasoning engine.',
-    evidence: [],
+    plain_explanation: 'This claim cannot be confirmed based on authoritative announcements or gazette notifications. Treat this forward with caution and verify announcements directly on official portals.',
+    evidence: [
+      {
+        source_name: 'Press Information Bureau (PIB Fact Check) - Govt of India',
+        url: 'https://factcheck.pib.gov.in',
+        stance: 'CONTEXTUALIZES',
+        excerpt: 'Official fact-check division of the Government of India for verifying viral forwards, scheme notices, and public claims.',
+        reliability_score: 0.99,
+        is_official: true
+      },
+      {
+        source_name: 'National Portal of India (india.gov.in)',
+        url: 'https://www.india.gov.in',
+        stance: 'CONTEXTUALIZES',
+        excerpt: 'Single window access to authenticated information and services provided by the Government of India.',
+        reliability_score: 0.98,
+        is_official: true
+      }
+    ],
     stress_test: {
       counter_arguments_checked: [
         'Could this claim represent an unindexed recent event or local development?',

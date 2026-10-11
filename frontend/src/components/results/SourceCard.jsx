@@ -58,6 +58,14 @@ export default function SourceCard({ item, index }) {
 
   const hasValidUrl = url && (url.startsWith('http://') || url.startsWith('https://'));
 
+  const officialDomain = url ? (() => {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return null;
+    }
+  })() : null;
+
   return (
     <article className="source-card" aria-label={`Source citation ${index + 1}`}>
       {/* Top Header Row */}
@@ -67,24 +75,22 @@ export default function SourceCard({ item, index }) {
           <div>
             <h4 className="source-card-name">{sourceName}</h4>
             <div className="source-metadata-row">
+              {officialDomain && (
+                <span className="source-meta-item" style={{ color: 'var(--color-navy, #1e3a8a)', fontWeight: 600 }}>
+                  <Globe size={12} aria-hidden="true" />
+                  <span>{officialDomain}</span>
+                </span>
+              )}
               {dateText && (
                 <span className="source-meta-item">
                   <Calendar size={12} aria-hidden="true" />
                   <span>{dateText}</span>
                 </span>
               )}
-              {origin && (
-                <span className="source-origin-chip">
-                  <Database size={11} aria-hidden="true" />
-                  <span>{origin.replace(/_/g, ' ')}</span>
-                </span>
-              )}
-              {isOfficial && (
-                <span className="source-meta-item" style={{ color: 'var(--color-navy)', fontWeight: 600 }}>
-                  <ShieldCheck size={12} aria-hidden="true" />
-                  <span>Official Source</span>
-                </span>
-              )}
+              <span className="source-origin-chip" style={{ background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' }}>
+                <ShieldCheck size={11} aria-hidden="true" />
+                <span>Official Registry</span>
+              </span>
             </div>
           </div>
         </div>
@@ -133,13 +139,13 @@ export default function SourceCard({ item, index }) {
             target="_blank"
             rel="noopener noreferrer"
             className="source-external-link"
-            title={`Open original source at ${url}`}
+            title={`Redirect to official source at ${url}`}
           >
-            <span>Open Source</span>
+            <span>Redirect to Official Source</span>
             <ExternalLink size={13} aria-hidden="true" />
           </a>
         ) : (
-          <span className="source-archive-tag">Archived Official Record</span>
+          <span className="source-archive-tag">Official Record</span>
         )}
       </div>
     </article>

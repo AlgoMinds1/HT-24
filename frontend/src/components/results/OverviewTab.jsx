@@ -10,7 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   Cpu,
-  Bookmark
+  Bookmark,
+  Award
 } from 'lucide-react';
 import { RESULTS_TAB_KEYS } from './ResultsTabs';
 
@@ -149,6 +150,37 @@ export default function OverviewTab({ contract, onNavigateTab }) {
               </div>
             </div>
           )}
+        </section>
+
+        {/* Card 3: Calibrated Verification Confidence Score */}
+        <section className="overview-card confidence-score-card" aria-label="Confidence Score Assessment">
+          <div className="overview-card-header">
+            <Award size={16} className="card-accent-icon" aria-hidden="true" />
+            <h3 className="overview-card-title">Confidence Assessment</h3>
+          </div>
+          <div className="primary-source-body">
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.65rem', marginBottom: '0.6rem' }}>
+              <span style={{ fontSize: '2.1rem', fontWeight: 900, fontFamily: 'var(--font-mono, monospace)', color: '#0f172a' }}>
+                {typeof verdict.confidence === 'number' && !isNaN(verdict.confidence)
+                  ? (verdict.confidence <= 1 ? Math.round(verdict.confidence * 100) : Math.round(verdict.confidence))
+                  : (verdict.confidenceRating === 'HIGH' ? 95 : (verdict.confidenceRating === 'MEDIUM' ? 60 : 35))}%
+              </span>
+              <span style={{ 
+                padding: '0.25rem 0.6rem', 
+                borderRadius: '9999px', 
+                fontSize: '0.75rem', 
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                background: (verdict.confidenceRating || 'HIGH') === 'HIGH' ? '#dcfce7' : ((verdict.confidenceRating === 'MEDIUM') ? '#fef3c7' : '#f3e8ff'),
+                color: (verdict.confidenceRating || 'HIGH') === 'HIGH' ? '#15803d' : ((verdict.confidenceRating === 'MEDIUM') ? '#b45309' : '#6b21a8')
+              }}>
+                {verdict.confidenceRating || 'CALIBRATED'} CONFIDENCE
+              </span>
+            </div>
+            <p className="primary-source-excerpt" style={{ margin: 0 }}>
+              {verdict.rationale || 'Evaluated and calibrated based on authoritative verification against official government registries.'}
+            </p>
+          </div>
         </section>
       </div>
 

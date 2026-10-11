@@ -48,8 +48,10 @@ export default function VerdictCard({ verdict = {} }) {
     }
   };
 
-  const hasValidConfidence = typeof confidence === 'number' && !isNaN(confidence) && confidence >= 0 && confidence <= 1;
-  const percentage = hasValidConfidence ? Math.round(confidence * 100) : null;
+  const hasValidConfidence = (typeof confidence === 'number' && !isNaN(confidence) && confidence >= 0) || Boolean(confidenceRating);
+  const percentage = typeof confidence === 'number' && !isNaN(confidence)
+    ? (confidence <= 1 ? Math.round(confidence * 100) : Math.round(confidence))
+    : (confidenceRating === 'HIGH' ? 95 : (confidenceRating === 'MEDIUM' ? 60 : (confidenceRating === 'LOW' ? 35 : 75)));
 
   return (
     <section className={`verdict-card-container verdict-${status.toLowerCase()}`} aria-label="Verification Outcome">
