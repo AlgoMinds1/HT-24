@@ -203,7 +203,7 @@ export default function OverviewTab({ contract, onNavigateTab }) {
             className="safety-more-btn"
             onClick={() => onNavigateTab(RESULTS_TAB_KEYS.SAFETY)}
           >
-            <span>Safety Details</span>
+            <span>Already shared? Damage Control</span>
             <ArrowRight size={13} aria-hidden="true" />
           </button>
         </section>
