@@ -65,7 +65,7 @@ function cleanJsonText(rawText) {
 /**
  * Builds user prompt for direct claim evaluation grounded in live real-time news and official data.
  */
-function buildClaimPrompt(claimText, liveArticles = []) {
+function buildClaimPrompt(claimText, liveArticles = [], options = {}) {
   const todayStr = new Date().toISOString().split('T')[0];
 
   const liveNewsSection = liveArticles && liveArticles.length > 0
@@ -82,12 +82,38 @@ CRITICAL REAL-TIME GROUNDING INSTRUCTIONS:
 - In the "evidence" array, cite 1 to 3 authentic sources from the live search results above (using their real URLs and names)!`
     : `(No breaking real-time news headlines detected. Evaluate against authoritative government registries and verified institutional records.)`;
 
+  const fusion = options.extraction?.evidenceFusion;
+  const exif = options.extraction?.exifAnalysis;
+  let metadataForensicsSection = '';
+
+  if (fusion || exif) {
+    const risk = fusion?.metadataAnalysis?.manipulationRisk || exif?.manipulationRisk || 'UNKNOWN';
+    const fields = fusion?.metadataAnalysis?.fields || exif?.metadataFields || {};
+    const factChecksCount = fusion?.factCheckCrossCheck?.totalFound || (options.extraction?.factCheckResults?.length || 0);
+
+    metadataForensicsSection = `\nSTEP 2A & 2B FORENSIC & METADATA ANALYSIS (EVIDENCE FUSION):\n` +
+      `- DateTimeOriginal: ${fields.dateTimeOriginal?.value ? `${fields.dateTimeOriginal.value} (${fields.dateTimeOriginal.finding})` : 'Missing timestamp tag (typical for re-shared forwards)'}\n` +
+      `- Make / Model: ${fields.makeModel?.value ? `${fields.makeModel.value} (${fields.makeModel.finding})` : 'No camera hardware tag (screenshot tool or stripped metadata)'}\n` +
+      `- Software: ${fields.software?.value ? `${fields.software.value} [${fields.software.status}]` : 'Clean (no editing software signature)'}\n` +
+      `- GPS (Lat/Lon): ${fields.gps?.value ? `${fields.gps.value.latitude}, ${fields.gps.value.longitude}` : 'No GPS coordinates'}\n` +
+      `- ImageWidth/Height: ${fields.imageDimensions?.value ? `${fields.imageDimensions.value} (${fields.imageDimensions.status})` : 'Standard dimensions'}\n` +
+      `- Orientation: ${fields.orientation?.value ? `${fields.orientation.value}` : 'Standard'}\n` +
+      `- Manipulation Risk Level: ${risk}\n` +
+      `- Visual OCR Engine: ${fusion?.visualAnalysis?.engine || 'Multimodal Vision'}\n` +
+      `- Prior Certified Fact-Checks Found in Step 3: ${factChecksCount}\n\n` +
+      `FORENSIC GROUNDING RULES:\n` +
+      `1. If "Software" indicates Photoshop or editing software (Risk: HIGH), YOU MUST treat the image as potentially manipulated, mention it in plain_explanation, and register this counter-argument in stress_test.\n` +
+      `2. If "DateTimeOriginal" reveals an older date while the forward claims breaking current news, mark as "OUTDATED" or "FALSE".\n` +
+      `3. If certified fact-checks contradict the claim, mark as "FALSE" with high confidence.\n` +
+      `4. If "Make / Model" is missing or screenshot crop is detected, note in stress_test edge cases that the image is a social media re-share/screenshot.\n`;
+  }
+
   return `Analyze the following forwarded message or factual claim:
 
 """
 ${claimText}
 """
-
+${metadataForensicsSection}
 ${liveNewsSection}
 
 VERIFICATION INSTRUCTIONS:
@@ -154,7 +180,7 @@ Return ONLY a valid JSON object matching this exact schema (do NOT use pipe symb
 /**
  * Attempts verification using Groq API.
  */
-async function callGroqEngine(claimText, liveArticles = []) {
+async function callGroqEngine(claimText, liveArticles = [], options = {}) {
   if (!env.hasGroqKey) {
     throw new Error('GROQ_API_KEY is not configured');
   }
@@ -182,7 +208,7 @@ async function callGroqEngine(claimText, liveArticles = []) {
           model,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: buildClaimPrompt(claimText, liveArticles) }
+            { role: 'user', content: buildClaimPrompt(claimText, liveArticles, options) }
           ],
           response_format: { type: 'json_object' },
           temperature: 0.1
@@ -216,7 +242,7 @@ async function callGroqEngine(claimText, liveArticles = []) {
 /**
  * Attempts verification using Google Gemini API with fail-fast timeout.
  */
-async function callGeminiEngine(claimText, liveArticles = []) {
+async function callGeminiEngine(claimText, liveArticles = [], options = {}) {
   if (!env.hasGeminiKey) {
     throw new Error('GEMINI_API_KEY is not configured');
   }
@@ -245,7 +271,7 @@ async function callGeminiEngine(claimText, liveArticles = []) {
       );
 
       const response = await Promise.race([
-        model.generateContent(buildClaimPrompt(claimText, liveArticles)),
+        model.generateContent(buildClaimPrompt(claimText, liveArticles, options)),
         timeoutPromise
       ]);
 
@@ -413,6 +439,19 @@ export async function verifyClaimWithAI(claimText, options = {}) {
     console.warn(`[AI Verifier] Context retrieval failed: ${err.message}`);
   }
 
+  // Pre-seed liveArticles with pre-fetched fact checks from Step 3 if available
+  const preloadedFactChecks = options.extraction?.factCheckResults || [];
+  if (preloadedFactChecks.length > 0) {
+    const seenUrls = new Set(liveArticles.map(a => (a.url || '').toLowerCase()));
+    for (const fc of preloadedFactChecks) {
+      const urlKey = (fc.url || '').toLowerCase();
+      if (!seenUrls.has(urlKey)) {
+        liveArticles.unshift(fc);
+        seenUrls.add(urlKey);
+      }
+    }
+  }
+
   let result = null;
   let activeProvider = null;
 
@@ -421,7 +460,7 @@ export async function verifyClaimWithAI(claimText, options = {}) {
 
   if (env.hasGroqKey) {
     enginePromises.push(
-      callGroqEngine(cleanClaim, liveArticles)
+      callGroqEngine(cleanClaim, liveArticles, options)
         .then(res => ({ ok: true, engine: 'groq', ...res }))
         .catch(err => ({ ok: false, engine: 'groq', error: err.message }))
     );
@@ -429,7 +468,7 @@ export async function verifyClaimWithAI(claimText, options = {}) {
 
   if (env.hasGeminiKey) {
     enginePromises.push(
-      callGeminiEngine(cleanClaim, liveArticles)
+      callGeminiEngine(cleanClaim, liveArticles, options)
         .then(res => ({ ok: true, engine: 'gemini', ...res }))
         .catch(err => ({ ok: false, engine: 'gemini', error: err.message }))
     );
@@ -612,6 +651,27 @@ export async function verifyClaimWithAI(claimText, options = {}) {
     }
     if (!result.stress_test.robustness_summary) {
       result.stress_test.robustness_summary = 'Verified through official domain corroboration.';
+    }
+  }
+
+  // Incorporate 2A Metadata and 2B Visual evidence signals into stress-test
+  if (options.extraction?.evidenceFusion || options.extraction?.exifAnalysis) {
+    const fusion = options.extraction?.evidenceFusion;
+    const exif = options.extraction?.exifAnalysis;
+    const manipRisk = fusion?.metadataAnalysis?.manipulationRisk || exif?.manipulationRisk;
+    const sw = fusion?.metadataAnalysis?.fields?.software?.value || exif?.software;
+    const dt = fusion?.metadataAnalysis?.fields?.dateTimeOriginal?.value || exif?.captureDate;
+
+    if (sw && manipRisk === 'HIGH') {
+      result.stress_test.counter_arguments_checked.unshift(`Metadata Forensic Flag: Editing software detected (${sw}) — potential image manipulation`);
+    } else if (manipRisk === 'HIGH') {
+      result.stress_test.counter_arguments_checked.unshift(`Metadata Forensic Flag: High manipulation risk detected from image metadata signals`);
+    } else if (dt) {
+      result.stress_test.counter_arguments_checked.unshift(`EXIF Metadata Grounding: Image capture date verified as ${dt}`);
+    }
+
+    if (fusion?.factCheckCrossCheck?.totalFound > 0) {
+      result.stress_test.counter_arguments_checked.unshift(`Fact-Check Registry Cross-Check: Corroborated by ${fusion.factCheckCrossCheck.totalFound} certified fact-check debunks`);
     }
   }
 

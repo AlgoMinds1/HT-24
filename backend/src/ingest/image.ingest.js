@@ -2,6 +2,8 @@ import { createIngestionResult } from './claim-contract.js';
 import { ApiError } from '../utils/api-error.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../config/env.js';
+import { extractExif, analyzeExifSignals } from '../utils/exif.parser.js';
+import { fetchFactChecks } from '../services/live_news_retriever.js';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -54,24 +56,44 @@ export async function ingestImage(file) {
   let extractedText = '';
   let claimText = '';
   let readability = 'clear';
+  let visionEngineUsed = null;
   const warnings = [];
+
+  // ── Step 2A: EXIF Metadata Analysis (zero-cost, runs in parallel with OCR) ──
+  let exifData = null;
+  let exifAnalysis = null;
+  try {
+    exifData = extractExif(file.buffer);
+    exifAnalysis = analyzeExifSignals(exifData);
+    if (exifAnalysis.warnings.length > 0) {
+      warnings.push(...exifAnalysis.warnings);
+    }
+    console.log(`[Image Ingest] EXIF: hasExif=${exifAnalysis.hasExif}, manipulationRisk=${exifAnalysis.manipulationRisk}, signals=${exifAnalysis.signals.length}`);
+  } catch (exifErr) {
+    console.warn('[Image Ingest] EXIF extraction skipped:', exifErr.message);
+  }
 
   if (env.hasGroqKey) {
     const visionModels = (env.GROQ_VISION_FALLBACK_MODELS && env.GROQ_VISION_FALLBACK_MODELS.length > 0)
       ? env.GROQ_VISION_FALLBACK_MODELS
       : [env.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b', 'qwen/qwen3.8-27b'];
 
+    const exifContext = exifAnalysis
+      ? `\n\nEXIF METADATA ANALYSIS (pre-extracted):\n${exifAnalysis.summary}\nManipulation Risk: ${exifAnalysis.manipulationRisk}\n${exifAnalysis.signals.map(s => `- ${s.type}: ${JSON.stringify(s.value)} [Risk: ${s.risk}]`).join('\n')}`
+      : '';
+
     const prompt = `Analyze this image (which may be a screenshot of a forwarded message, social media post, or graphic):
 1. Extract any visible text completely via OCR (prioritize message bubbles and headlines over background UI chrome).
 2. Identify the central factual claim being made.
 3. Note if the image is blurry, cropped, low-resolution, or partially legible.
+4. If EXIF metadata shows editing software or date mismatches, factor this into your assessment.${exifContext}
 
 Return JSON in this format:
 {
   "extractedText": "full OCR text found in image",
   "claimText": "atomic factual claim statement",
   "readability": "clear" | "partial" | "unreadable",
-  "warnings": ["warning 1 if blurry or cropped"]
+  "warnings": ["warning 1 if blurry or cropped or EXIF mismatch"]
 }`;
 
     const base64Data = file.buffer.toString('base64');
@@ -133,6 +155,7 @@ Return JSON in this format:
             claimText = cleaned.substring(0, 300);
           }
           ocrSucceeded = true;
+          visionEngineUsed = `Groq Vision (${modelName})`;
           break;
         } catch (err) {
           console.warn(`[Groq Vision] Model ${modelName} attempt ${attempt} encountered error:`, err.message);
@@ -152,17 +175,22 @@ Return JSON in this format:
       : [env.GEMINI_MODEL || 'gemini-3.8-flash', 'gemini-3.8-flash'];
 
     const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+    const exifContextGemini = exifAnalysis
+      ? `\n\nEXIF METADATA ANALYSIS (pre-extracted):\n${exifAnalysis.summary}\nManipulation Risk: ${exifAnalysis.manipulationRisk}\n${exifAnalysis.signals.map(s => `- ${s.type}: ${JSON.stringify(s.value)} [Risk: ${s.risk}]`).join('\n')}`
+      : '';
+
     const prompt = `Analyze this image (which may be a screenshot of a forwarded message, social media post, or graphic):
 1. Extract any visible text completely via OCR (prioritize message bubbles and headlines over background UI chrome).
 2. Identify the central factual claim being made.
 3. Note if the image is blurry, cropped, low-resolution, or partially legible.
+4. If EXIF metadata shows editing software or date mismatches, factor this into your assessment.${exifContextGemini}
 
 Return JSON in this format:
 {
   "extractedText": "full OCR text found in image",
   "claimText": "atomic factual claim statement",
   "readability": "clear" | "partial" | "unreadable",
-  "warnings": ["warning 1 if blurry or cropped"]
+  "warnings": ["warning 1 if blurry or cropped or EXIF mismatch"]
 }`;
 
     const imagePart = {
@@ -217,6 +245,7 @@ Return JSON in this format:
             claimText = cleaned.substring(0, 300);
           }
           ocrSucceeded = true;
+          visionEngineUsed = `Gemini Vision (${modelName})`;
           break;
         }
       } catch (err) {
@@ -236,18 +265,95 @@ Return JSON in this format:
     claimText = extractedText.substring(0, 500);
   }
 
+  // ── Step 3: External Evidence Cross-Check (Google Fact Check Tools API) ──
+  let factCheckResults = [];
+  if (claimText && claimText.length >= 5) {
+    try {
+      factCheckResults = await fetchFactChecks(claimText);
+      console.log(`[Image Ingest] Step 3: Retrieved ${factCheckResults.length} fact-checks for image claim: "${claimText.slice(0, 60)}..."`);
+    } catch (fcErr) {
+      console.warn('[Image Ingest] Step 3 Fact check fetch skipped:', fcErr.message);
+    }
+  }
+
+  // ── Step 4: Evidence Fusion (2A Metadata Analysis + 2B Visual Analysis + Step 3 Fact Checks) ──
+  const metadataFields = exifAnalysis?.metadataFields || null;
+  const manipulationRisk = exifAnalysis?.manipulationRisk || 'UNKNOWN';
+
+  const evidenceFusion = {
+    // 2A Metadata Analysis signals
+    metadataAnalysis: {
+      hasExif: Boolean(exifAnalysis?.hasExif),
+      manipulationRisk,
+      fields: metadataFields,
+      summary: exifAnalysis?.summary || 'No EXIF metadata available.'
+    },
+    // 2B Visual Analysis signals
+    visualAnalysis: {
+      engine: visionEngineUsed || 'none',
+      readability,
+      extractedTextLength: extractedText.length,
+      hasExtractedClaim: Boolean(claimText),
+      ocrWarnings: warnings.filter(w => !w.toLowerCase().includes('exif') && !w.toLowerCase().includes('software'))
+    },
+    // Step 3 Cross-check results
+    factCheckCrossCheck: {
+      totalFound: factCheckResults.length,
+      topMatches: factCheckResults.slice(0, 3).map(fc => ({
+        source: fc.source_name,
+        title: fc.title,
+        stance: fc.stance,
+        url: fc.url
+      }))
+    },
+    // Consolidated fusion assessment
+    fusionSummary: [
+      exifAnalysis?.summary ? `[2A Metadata] ${exifAnalysis.summary} (Risk: ${manipulationRisk})` : '[2A Metadata] Stripped / No EXIF (Common in viral forwards)',
+      visionEngineUsed ? `[2B Visual OCR] Extracted via ${visionEngineUsed}` : '[2B Visual OCR] OCR unavailable',
+      factCheckResults.length > 0 
+        ? `[3 Fact-Check Cross-Check] Corroborated by ${factCheckResults.length} certified debunks/articles (${factCheckResults.map(f => f.source_name).slice(0, 2).join(', ')})`
+        : '[3 Fact-Check Cross-Check] No prior certified debunks in fact-check registry'
+    ].join(' | ')
+  };
+
+  // Extract dateHint from EXIF capture date for the claim contract
+  const dateHintFromExif = exifData?.dateTimeOriginal
+    ? exifData.dateTimeOriginal.substring(0, 10).replace(/:/g, '-')
+    : null;
+
   return createIngestionResult({
     inputType: 'image',
     claimText,
     language: 'en',
     entities: [],
-    dateHint: null,
+    dateHint: dateHintFromExif,
     extraction: {
       extractedText,
       warnings,
       readability,
       fileName: file.originalname,
-      fileSizeBytes: file.size
+      fileSizeBytes: file.size,
+      // EXIF metadata and signal analysis
+      exif: exifData || undefined,
+      exifAnalysis: exifAnalysis
+        ? {
+            hasExif:          exifAnalysis.hasExif,
+            manipulationRisk: exifAnalysis.manipulationRisk,
+            summary:          exifAnalysis.summary,
+            signals:          exifAnalysis.signals,
+            metadataFields:   exifAnalysis.metadataFields || null,
+            captureDate:      exifData?.dateTimeOriginal || null,
+            device:           (exifData?.make && exifData?.model) ? `${exifData.make} ${exifData.model}` : null,
+            software:         exifData?.software || null,
+            gps:              exifData?.gps || null,
+            orientation:      exifData?.orientation || null,
+            dimensions:       (exifData?.imageWidth && exifData?.imageHeight)
+                                ? { width: exifData.imageWidth, height: exifData.imageHeight }
+                                : null
+          }
+        : { hasExif: false, manipulationRisk: 'UNKNOWN', summary: 'No EXIF data available.' },
+      factCheckResults,
+      evidenceFusion
     }
   });
 }

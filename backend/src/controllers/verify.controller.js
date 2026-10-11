@@ -53,7 +53,8 @@ export async function handleVerifyClaim(req, res, next) {
     // 4. Verify claim directly using AI (Groq / Gemini) directing only to official website sources (no RAG)
     const verdictPayload = await verifyClaimWithAI(claimText, {
       inputType: ingestionResult.inputType,
-      sourcePlatform: ingestionResult.extraction?.sourceUrl || ingestionResult.extraction?.fileName || 'Forwarded Claim'
+      sourcePlatform: ingestionResult.extraction?.sourceUrl || ingestionResult.extraction?.fileName || 'Forwarded Claim',
+      extraction: ingestionResult.extraction
     });
 
     // 6. Enrich verdict with multimodal input metadata and extraction artifacts

@@ -475,7 +475,11 @@ export function normalizeVerdictContract(rawData, options = {}) {
     warnings: Array.isArray(rawExtraction.warnings) ? rawExtraction.warnings : [],
     readability: rawExtraction.readability || 'clear',
     sourceUrl: rawExtraction.sourceUrl || undefined,
-    fileName: rawExtraction.fileName || undefined
+    fileName: rawExtraction.fileName || undefined,
+    exif: rawExtraction.exif || undefined,
+    exifAnalysis: rawExtraction.exifAnalysis || undefined,
+    factCheckResults: Array.isArray(rawExtraction.factCheckResults) ? rawExtraction.factCheckResults : [],
+    evidenceFusion: rawExtraction.evidenceFusion || undefined
   };
 
   inputObj.extraction = extractionObj;
