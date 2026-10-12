@@ -1,152 +1,111 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  CheckCircle2, 
-  AlertCircle, 
-  RotateCcw,
-  ArrowLeft,
-  XCircle
+  Globe2, 
+  Layers, 
+  RotateCcw, 
+  AlertTriangle, 
+  XCircle 
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
-
-const STAGES = [
-  {
-    index: 0,
-    title: '1. Ingesting & Validating Payload',
-    description: 'Verifying MIME signatures, normalizing text/media, and extracting core forward.'
-  },
-  {
-    index: 1,
-    title: '2. Extracting Atomic Claim',
-    description: 'Isolating the core verifiable proposition and identifying temporal markers.'
-  },
-  {
-    index: 2,
-    title: '3. Cross-Referencing Evidence',
-    description: 'Searching authoritative primary sources, fact-checking records, and temporal archives.'
-  },
-  {
-    index: 3,
-    title: '4. Synthesizing Evidence Verdict',
-    description: 'Executing adversarial contradiction checks and action-risk scoring.'
-  }
-];
+import SandboxHeader from '../sandbox/SandboxHeader';
+import LiveBrowserArea from '../sandbox/LiveBrowserArea';
+import AgentActivityPanel from '../sandbox/AgentActivityPanel';
+import EvidenceLedgerPanel from '../sandbox/EvidenceLedgerPanel';
 
 export default function AnalysisScreen() {
   const { 
-    currentStepIndex, 
-    error, 
-    resetVerification, 
-    startVerification,
-    setScreen
+    investigationState, 
+    startVerification, 
+    goToDashboard,
+    error 
   } = useVerification();
 
-  if (error) {
-    return (
-      <div className="analysis-page-container">
-        <div className="analysis-dossier-card" role="alert" style={{ borderColor: 'var(--color-verdict-false)' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--color-verdict-false-bg)', color: 'var(--color-verdict-false)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
-            <AlertCircle size={28} />
-          </div>
-
-          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.75rem', color: 'var(--color-ink)', marginBottom: '0.75rem' }}>
-            Verification Interrupted
-          </h2>
-          <p style={{ fontSize: '0.92rem', color: 'var(--color-ink-secondary)', marginBottom: '1.5rem', lineHeight: 1.55 }}>
-            {error}
-          </p>
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-            <button
-              type="button"
-              className="btn-forest"
-              onClick={startVerification}
-            >
-              <RotateCcw size={15} /> Retry Verification
-            </button>
-            <button
-              type="button"
-              className="btn-secondary-quiet"
-              onClick={() => setScreen('dashboard')}
-            >
-              <ArrowLeft size={15} /> Return to Studio
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const [mobileTab, setMobileTab] = useState('findings'); // 'findings' | 'dossier'
+  const { status } = investigationState;
+  const isAborted = status === 'aborted';
+  const isFailed = status === 'failed';
 
   return (
-    <div className="analysis-page-container">
-      <div className="analysis-dossier-card">
-        
-        {/* Botanical Pulse Icon */}
-        <div className="analysis-spinner-botanical">
-          <svg viewBox="0 0 32 32" fill="none" style={{ width: '100%', height: '100%' }}>
-            <path d="M16 4C9.5 4 4 9.5 4 16C4 22.5 9.5 28 16 28C22.5 28 28 22.5 28 16C28 9.5 22.5 4 16 4Z" stroke="var(--color-forest)" strokeWidth="2" />
-            <path d="M10 20C11.5 14 16 10 22 10C20.5 16 16 20 10 20Z" fill="var(--color-sage-light)" stroke="var(--color-forest)" strokeWidth="1.5" />
-          </svg>
+    <div className="sandbox-fullscreen-container">
+      {/* 1. Slim, Clean Control Header */}
+      <SandboxHeader />
+
+      {/* 2. Error / Abort Notification (Only displayed if interrupted) */}
+      {isAborted && (
+        <div className="sandbox-notice-banner aborted" role="alert">
+          <div className="notice-text">
+            <XCircle size={16} />
+            <span>Investigation cancelled by user. Background tasks stopped.</span>
+          </div>
+          <div className="notice-actions">
+            <button type="button" className="btn-notice-quiet" onClick={goToDashboard}>
+              Return to Studio
+            </button>
+            <button type="button" className="btn-notice-primary" onClick={startVerification}>
+              <RotateCcw size={12} /> Restart
+            </button>
+          </div>
         </div>
+      )}
 
-        <span className="section-eyebrow">FORENSIC CLAIM EVALUATION</span>
-        <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', color: 'var(--color-ink)', marginBottom: '0.5rem' }}>
-          Examining Evidence Dossier
-        </h2>
-        <p style={{ fontSize: '0.9rem', color: 'var(--color-ink-secondary)', maxWidth: '480px', margin: '0 auto 2rem' }}>
-          Grounding assertions in primary source citations and running adversarial contradiction checks.
-        </p>
-
-        {/* 4 Stages Progression */}
-        <div className="analysis-stages-list">
-          {STAGES.map((stage) => {
-            const isCompleted = currentStepIndex > stage.index;
-            const isCurrent = currentStepIndex === stage.index;
-
-            return (
-              <div 
-                key={stage.index} 
-                className={`stage-row ${isCurrent ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-                style={{
-                  border: isCurrent ? '1px solid var(--color-forest)' : '1px solid var(--color-border)',
-                  background: isCurrent ? 'var(--color-sage-surface)' : isCompleted ? 'var(--color-paper-light)' : 'transparent'
-                }}
-              >
-                <div style={{ flexShrink: 0 }}>
-                  {isCompleted ? (
-                    <CheckCircle2 size={18} color="var(--color-forest)" />
-                  ) : isCurrent ? (
-                    <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'var(--color-forest)', margin: '2px' }} />
-                  ) : (
-                    <div style={{ width: '14px', height: '14px', borderRadius: '50%', border: '1.5px solid var(--color-border-strong)', margin: '2px' }} />
-                  )}
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: isCurrent ? 600 : 500, color: 'var(--color-ink)' }}>
-                    {stage.title}
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--color-ink-muted)' }}>
-                    {stage.description}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {isFailed && (
+        <div className="sandbox-notice-banner failed" role="alert">
+          <div className="notice-text">
+            <AlertTriangle size={16} />
+            <span>{error?.message || 'Verification halted due to upstream network issue.'}</span>
+          </div>
+          <div className="notice-actions">
+            <button type="button" className="btn-notice-quiet" onClick={goToDashboard}>
+              Return to Studio
+            </button>
+            <button type="button" className="btn-notice-primary" onClick={startVerification}>
+              <RotateCcw size={12} /> Retry
+            </button>
+          </div>
         </div>
+      )}
 
-        <button
-          type="button"
-          className="btn-secondary-quiet"
-          onClick={() => {
-            resetVerification();
-            setScreen('dashboard');
-          }}
-          style={{ fontSize: '0.8125rem' }}
+      {/* 3. Mobile View Switcher */}
+      <div className="sandbox-mobile-nav" role="tablist">
+        <button 
+          type="button" 
+          role="tab"
+          aria-selected={mobileTab === 'findings'}
+          className={`mobile-nav-btn ${mobileTab === 'findings' ? 'active' : ''}`}
+          onClick={() => setMobileTab('findings')}
         >
-          <XCircle size={14} /> Abort Verification
+          <Globe2 size={14} />
+          <span>Claim & Findings</span>
         </button>
 
+        <button 
+          type="button" 
+          role="tab"
+          aria-selected={mobileTab === 'dossier'}
+          className={`mobile-nav-btn ${mobileTab === 'dossier' ? 'active' : ''}`}
+          onClick={() => setMobileTab('dossier')}
+        >
+          <Layers size={14} />
+          <span>Agents & Evidence</span>
+        </button>
       </div>
+
+      {/* 4. Clean 2-Column Balanced Workspace */}
+      <main className="sandbox-two-column-grid">
+        {/* Left Column: Claim, Active Finding, Event Ticker (~52%) */}
+        <div className={`sandbox-grid-col col-findings ${mobileTab === 'findings' ? 'mob-show' : 'mob-hide'}`}>
+          <LiveBrowserArea />
+        </div>
+
+        {/* Right Column: Agents Status & Evidence Ledger (~48%) */}
+        <div className={`sandbox-grid-col col-dossier ${mobileTab === 'dossier' ? 'mob-show' : 'mob-hide'}`}>
+          <div className="sandbox-card dossier-card">
+            <AgentActivityPanel />
+            <div className="dossier-divider" />
+            <EvidenceLedgerPanel />
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

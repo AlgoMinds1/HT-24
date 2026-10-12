@@ -16,7 +16,8 @@ import {
   Info,
   AlertTriangle,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { FIXTURE_MAP } from '../../services/verificationService';
@@ -34,6 +35,7 @@ export default function InputScreen() {
     activePresetKey,
     selectPreset,
     startVerification,
+    isAnalyzing,
     historyList = [],
     openPastReport,
     setScreen,
@@ -447,11 +449,29 @@ export default function InputScreen() {
           <button
             type="button"
             className="btn-forest"
-            disabled={!isInputValid()}
+            disabled={!isInputValid() || isAnalyzing}
             onClick={startVerification}
-            style={{ padding: '0.75rem 1.6rem', fontSize: '0.9375rem', opacity: isInputValid() ? 1 : 0.5, cursor: isInputValid() ? 'pointer' : 'not-allowed' }}
+            style={{ 
+              padding: '0.75rem 1.6rem', 
+              fontSize: '0.9375rem', 
+              opacity: isInputValid() && !isAnalyzing ? 1 : 0.6, 
+              cursor: isInputValid() && !isAnalyzing ? 'pointer' : 'not-allowed',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.55rem'
+            }}
           >
-            Verify Forward <ArrowRight size={16} />
+            {isAnalyzing ? (
+              <>
+                <Loader2 size={16} className="spin-loader" />
+                <span>Extracting & Ingesting...</span>
+              </>
+            ) : (
+              <>
+                <span>Verify Forward</span>
+                <ArrowRight size={16} />
+              </>
+            )}
           </button>
         </div>
 

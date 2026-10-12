@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { handleVerifyClaim } from '../controllers/verify.controller.js';
+import { 
+  handleVerifyClaim,
+  handleStreamById,
+  handleAbortVerification 
+} from '../controllers/verify.controller.js';
 import { uploadMiddleware } from '../middleware/upload.js';
 import { verificationCache } from '../utils/cache.js';
 
@@ -12,8 +16,21 @@ const router = Router();
  * - text (application/json)
  * - url (application/json)
  * - image, audio, pdf (multipart/form-data with "file" field)
+ * Supports ?stream=true for real-time SSE Dual-Agent event stream.
  */
 router.post('/verify', uploadMiddleware, handleVerifyClaim);
+
+/**
+ * GET /api/verify/stream/:id
+ * Connects or reconnects to an ongoing or completed investigation session via SSE.
+ */
+router.get('/verify/stream/:id', handleStreamById);
+
+/**
+ * POST /api/verify/abort/:id
+ * Cancels a live investigation session.
+ */
+router.post('/verify/abort/:id', handleAbortVerification);
 
 /**
  * GET /api/cache/stats
