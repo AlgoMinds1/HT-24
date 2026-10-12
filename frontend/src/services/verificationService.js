@@ -53,63 +53,87 @@ export const ANALYSIS_STEPS = [
 ];
 
 /**
- * Executes the verification flow with step progression callbacks, timeout guardrails, and structured error recovery.
+ * Aborts an active verification session on the backend.
+ * 
+ * @param {string} verificationId - ID of the active session
+ * @returns {Promise<boolean>}
+ */
+export async function abortVerification(verificationId) {
+  if (!verificationId) return false;
+  try {
+    const res = await fetch(`${API_BASE_URL}/verify/abort/${verificationId}`, {
+      method: 'POST'
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[verificationService] Abort request failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Executes the verification flow with real-time SSE stream reading,
+ * fine-grained event callbacks, timeout guardrails, and mock fallback.
  * 
  * @param {Object} inputPayload - { type: 'text'|'image'|'audio'|'pdf'|'url', content: any, file?: File, presetKey?: string }
- * @param {Function} onStepProgress - Callback receiving step index (0..3)
- * @param {Object} options - { isMockMode?: boolean, timeoutMs?: number }
+ * @param {Function} onEvent - Callback receiving each real-time investigation event object
+ * @param {Object} options - { isMockMode?: boolean, timeoutMs?: number, abortController?: AbortController }
  * @returns {Promise<Object>} Verdict payload matching contracts/verdict.schema.json
  */
-export async function verifyForward(inputPayload, onStepProgress, options = {}) {
+export async function verifyForward(inputPayload, onEvent, options = {}) {
   const isMock = options.isMockMode !== undefined ? options.isMockMode : DEFAULT_USE_MOCK;
-  const timeoutMs = options.timeoutMs || 60000;
+  const timeoutMs = options.timeoutMs || 90000;
+  const externalController = options.abortController;
+
+  const emitEvent = (ev) => {
+    if (typeof onEvent === 'function') {
+      try {
+        onEvent(ev);
+      } catch (e) {
+        console.warn('[verificationService] Error in onEvent callback:', e);
+      }
+    }
+  };
 
   // ============================================================================
-  // MOCK MODE (Deterministic Fixture-driven)
+  // MOCK MODE (Deterministic Fixture-driven with realistic animated steps)
   // ============================================================================
   if (isMock) {
-    if (onStepProgress) onStepProgress(0);
-    await new Promise((res) => setTimeout(res, 800));
+    const mockId = `mock_${Math.random().toString(36).slice(2, 9)}`;
 
-    if (onStepProgress) onStepProgress(1);
-    await new Promise((res) => setTimeout(res, 1000));
-
-    if (onStepProgress) onStepProgress(2);
-    await new Promise((res) => setTimeout(res, 1000));
-
-    if (onStepProgress) onStepProgress(3);
-    await new Promise((res) => setTimeout(res, 700));
+    emitEvent({
+      agent: 'system',
+      eventType: 'verification_started',
+      status: 'in_progress',
+      verificationId: mockId,
+      message: `Verification session initialized for input type: ${inputPayload.type}`
+    });
+    await new Promise((res) => setTimeout(res, 500));
 
     let selectedFixture = FIXTURE_MAP.outdated_gov.data;
-
     if (inputPayload.presetKey && FIXTURE_MAP[inputPayload.presetKey]) {
       selectedFixture = FIXTURE_MAP[inputPayload.presetKey].data;
     } else if (inputPayload.type === 'text' && typeof inputPayload.content === 'string') {
       const lower = inputPayload.content.toLowerCase();
-      if (lower.includes('vidyalaxmi') || lower.includes('education loan') || lower.includes('qhei') || lower.includes('subvention') || lower.includes('guarantor-free') || lower.includes('collateral-free')) {
+      if (lower.includes('vidyalaxmi') || lower.includes('education loan') || lower.includes('qhei')) {
         selectedFixture = FIXTURE_MAP.pm_vidyalaxmi.data;
-      } else if (lower.includes('lemon') || lower.includes('baking soda') || lower.includes('cancer') || lower.includes('health') || lower.includes('remedy')) {
+      } else if (lower.includes('lemon') || lower.includes('baking soda') || lower.includes('cancer')) {
         selectedFixture = FIXTURE_MAP.false_health.data;
-      } else if (lower.includes('kyc') || lower.includes('sbi') || lower.includes('yono') || lower.includes('bank') || lower.includes('penalty')) {
+      } else if (lower.includes('kyc') || lower.includes('sbi') || lower.includes('yono')) {
         selectedFixture = FIXTURE_MAP.suspicious_kyc.data;
-      } else if (lower.includes('laptop') || lower.includes('pmlaptop') || lower.includes('free laptop') || lower.includes('scheme 2021')) {
+      } else if (lower.includes('laptop') || lower.includes('scheme 2021')) {
         selectedFixture = FIXTURE_MAP.outdated_gov.data;
       } else {
-        // Unknown custom text query in demo mode: dynamically return UNCONFIRMED for their actual query!
-        return buildClientUnconfirmedPayload(inputPayload.content);
+        selectedFixture = buildClientUnconfirmedPayload(inputPayload.content);
       }
     } else if (inputPayload.type === 'url' && typeof inputPayload.content === 'string') {
       const lower = inputPayload.content.toLowerCase();
-      if (lower.includes('kyc') || lower.includes('secure') || lower.includes('verify') || lower.includes('account') || lower.includes('sbi') || lower.includes('bank') || lower.includes('yono') || lower.includes('update')) {
+      if (lower.includes('kyc') || lower.includes('sbi')) {
         selectedFixture = FIXTURE_MAP.suspicious_kyc.data;
-      } else if (lower.includes('vidyalaxmi') || lower.includes('loan') || lower.includes('scholarship')) {
+      } else if (lower.includes('vidyalaxmi')) {
         selectedFixture = FIXTURE_MAP.pm_vidyalaxmi.data;
-      } else if (lower.includes('health') || lower.includes('cure') || lower.includes('cancer')) {
-        selectedFixture = FIXTURE_MAP.false_health.data;
-      } else if (lower.includes('laptop') || lower.includes('scheme')) {
-        selectedFixture = FIXTURE_MAP.outdated_gov.data;
       } else {
-        return buildClientUnconfirmedPayload(inputPayload.content);
+        selectedFixture = buildClientUnconfirmedPayload(inputPayload.content);
       }
     } else if (inputPayload.type === 'audio') {
       selectedFixture = FIXTURE_MAP.false_health.data;
@@ -117,31 +141,153 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
       selectedFixture = FIXTURE_MAP.suspicious_kyc.data;
     }
 
+    const claimText = selectedFixture.claim || 'Submitted factual statement';
+
+    emitEvent({
+      agent: 'system',
+      eventType: 'claim_extracted',
+      status: 'completed',
+      data: { claimText, language: 'en', entities: [] },
+      message: `Extracted normalized factual claim: "${claimText}"`
+    });
+    await new Promise((res) => setTimeout(res, 600));
+
+    // Agent 1 search started
+    emitEvent({
+      agent: 'web_research',
+      eventType: 'search_started',
+      status: 'in_progress',
+      query: claimText,
+      provider: 'Google News RSS / Real-time Web Search',
+      message: `Agent 1 searching authoritative sources for: "${claimText}"`
+    });
+
+    // Agent 2 query started
+    emitEvent({
+      agent: 'fact_check',
+      eventType: 'fact_check_started',
+      status: 'in_progress',
+      query: claimText,
+      provider: 'Google Fact Check Tools API',
+      message: `Agent 2 querying Google Fact Check database for: "${claimText}"`
+    });
+    await new Promise((res) => setTimeout(res, 700));
+
+    // Mock evidence extraction
+    const mockEvidence = Array.isArray(selectedFixture.evidence) ? selectedFixture.evidence : [];
+    
+    if (mockEvidence.length > 0) {
+      const firstEv = mockEvidence[0];
+      emitEvent({
+        agent: 'web_research',
+        eventType: 'url_selected',
+        status: 'in_progress',
+        url: firstEv.url || 'https://factcheck.pib.gov.in',
+        title: firstEv.source_name || 'Official Portal',
+        domain: new URL(firstEv.url || 'https://factcheck.pib.gov.in').hostname,
+        message: `Inspecting candidate source: ${firstEv.source_name}`
+      });
+
+      await new Promise((res) => setTimeout(res, 500));
+
+      emitEvent({
+        agent: 'web_research',
+        eventType: 'page_fetch_completed',
+        status: 'completed',
+        url: firstEv.url || 'https://factcheck.pib.gov.in',
+        title: firstEv.source_name || 'Official Portal',
+        domain: new URL(firstEv.url || 'https://factcheck.pib.gov.in').hostname,
+        excerpt: firstEv.excerpt,
+        message: `Successfully inspected: ${firstEv.source_name}`
+      });
+
+      emitEvent({
+        agent: 'web_research',
+        eventType: 'evidence_extracted',
+        status: 'completed',
+        url: firstEv.url,
+        title: firstEv.source_name,
+        domain: new URL(firstEv.url || 'https://factcheck.pib.gov.in').hostname,
+        excerpt: firstEv.excerpt,
+        stance: firstEv.stance || 'CONTEXTUALIZES',
+        message: `Extracted verified evidence from ${firstEv.source_name}`
+      });
+    }
+
+    await new Promise((res) => setTimeout(res, 600));
+
+    // Agent 2 findings
+    if (selectedFixture.verdict === 'FALSE') {
+      emitEvent({
+        agent: 'fact_check',
+        eventType: 'fact_check_matches',
+        status: 'completed',
+        data: {
+          matchCount: 1,
+          records: [{
+            publisher: 'PIB Fact Check',
+            title: claimText,
+            rating: 'Fake / Misleading',
+            stance: 'REFUTES',
+            url: 'https://factcheck.pib.gov.in'
+          }]
+        },
+        message: 'Agent 2 found 1 matching certified fact-check record.'
+      });
+    } else {
+      emitEvent({
+        agent: 'fact_check',
+        eventType: 'fact_check_empty',
+        status: 'empty',
+        message: 'No conflicting records in Google Fact Check database.'
+      });
+    }
+
+    await new Promise((res) => setTimeout(res, 700));
+
+    emitEvent({
+      agent: 'synthesis',
+      eventType: 'evidence_comparison_completed',
+      status: 'completed',
+      data: {
+        totalEvidenceItems: mockEvidence.length,
+        fromAgent1Count: 1,
+        fromAgent2Count: selectedFixture.verdict === 'FALSE' ? 1 : 0
+      },
+      message: `Evidence synthesized: ${mockEvidence.length} distinct sources cross-referenced.`
+    });
+
+    await new Promise((res) => setTimeout(res, 600));
+
     const resultPayload = JSON.parse(JSON.stringify(selectedFixture));
     resultPayload.mode = 'mock';
+    resultPayload.verificationId = mockId;
 
-    if (inputPayload.type === 'text' && inputPayload.content && !inputPayload.presetKey) {
-      resultPayload.input.raw_text = inputPayload.content;
-      resultPayload.input.media_type = 'text';
-    } else if (inputPayload.type === 'url') {
-      resultPayload.input.raw_text = inputPayload.content;
-      resultPayload.input.media_type = 'url';
-    }
+    emitEvent({
+      agent: 'synthesis',
+      eventType: 'verification_completed',
+      status: 'completed',
+      data: resultPayload,
+      message: `Verification complete: [${resultPayload.verdict}] Determination established.`
+    });
 
     return resultPayload;
   }
 
   // ============================================================================
-  // LIVE MODE (Backend API POST /api/verify with timeout & retry handling)
+  // LIVE MODE (Real SSE Stream from Backend POST /api/verify?stream=true)
   // ============================================================================
-  const controller = new AbortController();
+  const controller = externalController || new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
 
   const fetchOptions = {
     method: 'POST',
-    signal: controller.signal
+    signal: controller.signal,
+    headers: {
+      'Accept': 'text/event-stream'
+    }
   };
 
   if (inputPayload.type === 'text') {
@@ -152,7 +298,7 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
       err.code = 'TEXT_TOO_SHORT';
       throw err;
     }
-    fetchOptions.headers = { 'Content-Type': 'application/json' };
+    fetchOptions.headers['Content-Type'] = 'application/json';
     fetchOptions.body = JSON.stringify({ inputType: 'text', text: textToVerify });
 
   } else if (inputPayload.type === 'url') {
@@ -163,7 +309,7 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
       err.code = 'MISSING_URL';
       throw err;
     }
-    fetchOptions.headers = { 'Content-Type': 'application/json' };
+    fetchOptions.headers['Content-Type'] = 'application/json';
     fetchOptions.body = JSON.stringify({ inputType: 'url', url: urlToVerify });
 
   } else if (inputPayload.type === 'image' || inputPayload.type === 'audio' || inputPayload.type === 'pdf') {
@@ -176,7 +322,7 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
     const formData = new FormData();
     formData.append('inputType', inputPayload.type);
     formData.append('file', inputPayload.file);
-    fetchOptions.body = formData; // Browser automatically populates multipart/form-data boundary
+    fetchOptions.body = formData;
   } else {
     clearTimeout(timeoutId);
     const err = new Error(`Unsupported input type: ${inputPayload.type}`);
@@ -184,66 +330,102 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
     throw err;
   }
 
-  if (onStepProgress) onStepProgress(0); // Ingesting input & extracting claim
-
   try {
-    const progressTimer1 = setTimeout(() => {
-      if (onStepProgress) onStepProgress(1); // Synthesizing knowledge
-    }, 1200);
-
-    const progressTimer2 = setTimeout(() => {
-      if (onStepProgress) onStepProgress(2); // Adversarial stress-test
-    }, 2800);
-
-    const response = await fetch(`${API_BASE_URL}/verify`, fetchOptions);
-
-    clearTimeout(timeoutId);
-    clearTimeout(progressTimer1);
-    clearTimeout(progressTimer2);
-
-    if (onStepProgress) onStepProgress(3); // Finalizing verdict
+    const response = await fetch(`${API_BASE_URL}/verify?stream=true`, fetchOptions);
 
     if (!response.ok) {
+      clearTimeout(timeoutId);
       let errorMessage = `Verification server returned status ${response.status}`;
       let errorCode = 'SERVER_ERROR';
-      let errorWarnings = [];
-
       try {
         const errorJson = await response.json();
-        if (errorJson.error) {
-          errorMessage = errorJson.error.message || errorMessage;
-          errorCode = errorJson.error.code || errorCode;
-          errorWarnings = errorJson.error.warnings || [];
-        } else if (errorJson.message) {
-          errorMessage = errorJson.message;
-        }
+        if (errorJson.error?.message) errorMessage = errorJson.error.message;
+        if (errorJson.error?.code) errorCode = errorJson.error.code;
       } catch {}
-
-      if ((response.status === 500 || response.status === 502 || response.status === 503) && (!errorCode || errorCode === 'SERVER_ERROR')) {
-        errorMessage = 'TruthLens backend service (port 8000) is stopped. Please run "npm run dev:backend" in your terminal, or switch to Demo Fixtures mode.';
-        errorCode = 'BACKEND_OFFLINE';
-      }
 
       const err = new Error(errorMessage);
       err.code = errorCode;
       err.status = response.status;
-      err.warnings = errorWarnings;
-      err.canRetry = response.status >= 500 || response.status === 429;
       throw err;
     }
 
-    const liveResult = await response.json();
-    liveResult.mode = 'live';
-    return liveResult;
+    const contentType = response.headers.get('content-type') || '';
+    
+    // If server responded with standard JSON instead of stream
+    if (contentType.includes('application/json')) {
+      clearTimeout(timeoutId);
+      const liveResult = await response.json();
+      liveResult.mode = 'live';
+      emitEvent({
+        agent: 'synthesis',
+        eventType: 'verification_completed',
+        status: 'completed',
+        data: liveResult,
+        message: `Verification complete: [${liveResult.verdict}] Determination established.`
+      });
+      return liveResult;
+    }
+
+    // Read SSE Stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let streamBuffer = '';
+    let finalVerdictPayload = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      streamBuffer += decoder.decode(value, { stream: true });
+      const lines = streamBuffer.split('\n');
+      streamBuffer = lines.pop() || ''; // Keep partial line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith(':')) continue; // Ignore keepalives or blank lines
+
+        if (trimmed.startsWith('data:')) {
+          const jsonStr = trimmed.slice(5).trim();
+          try {
+            const parsedEvent = JSON.parse(jsonStr);
+            emitEvent(parsedEvent);
+
+            if (parsedEvent.eventType === 'verification_completed' && parsedEvent.data) {
+              finalVerdictPayload = parsedEvent.data;
+            } else if (parsedEvent.eventType === 'verification_aborted') {
+              const abortErr = new Error(parsedEvent.message || 'Verification was aborted.');
+              abortErr.code = 'ABORTED';
+              throw abortErr;
+            } else if (parsedEvent.eventType === 'verification_failed') {
+              const failErr = new Error(parsedEvent.error || parsedEvent.message || 'Verification failed.');
+              failErr.code = 'VERIFICATION_FAILED';
+              throw failErr;
+            }
+          } catch (e) {
+            if (e.code === 'ABORTED' || e.code === 'VERIFICATION_FAILED') throw e;
+            console.warn('[verificationService] Failed to parse SSE line:', jsonStr, e);
+          }
+        }
+      }
+    }
+
+    clearTimeout(timeoutId);
+
+    if (finalVerdictPayload) {
+      finalVerdictPayload.mode = 'live';
+      return finalVerdictPayload;
+    }
+
+    throw new Error('Verification stream ended before a final determination was received.');
 
   } catch (err) {
     clearTimeout(timeoutId);
 
-    if (err.name === 'AbortError') {
-      const timeoutErr = new Error(`Verification timed out after ${Math.round(timeoutMs / 1000)} seconds. The upstream provider or server took too long to respond.`);
-      timeoutErr.code = 'TIMEOUT';
-      timeoutErr.canRetry = true;
-      throw timeoutErr;
+    if (err.name === 'AbortError' || err.code === 'ABORTED') {
+      const abortErr = new Error('Verification was cancelled by user or timed out.');
+      abortErr.code = 'ABORTED';
+      abortErr.isAborted = true;
+      throw abortErr;
     }
 
     if (err.name === 'TypeError' && err.message?.includes('fetch')) {
@@ -252,7 +434,6 @@ export async function verifyForward(inputPayload, onStepProgress, options = {}) 
       );
       connErr.code = 'CONNECTION_FAILED';
       connErr.isConnectionError = true;
-      connErr.canRetry = true;
       throw connErr;
     }
 

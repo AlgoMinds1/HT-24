@@ -5,7 +5,8 @@ import {
   Copy, 
   Download, 
   ArrowLeft,
-  Sparkles
+  Sparkles,
+  LayoutDashboard
 } from 'lucide-react';
 import { useVerification } from '../../context/VerificationContext';
 import { normalizeVerdictContract } from '../../contracts/verdictContract';
@@ -29,7 +30,8 @@ export default function ResultScreen() {
     resetVerification, 
     isMockMode,
     selectPreset,
-    activePresetKey 
+    activePresetKey,
+    goToSandbox
   } = useVerification();
 
   const [activeTab, setActiveTab] = useState(RESULTS_TAB_KEYS.OVERVIEW);
@@ -104,19 +106,34 @@ export default function ResultScreen() {
     <div className="redesigned-results-container" aria-label="Verification Report Dashboard">
       
       {/* 1. Live Mode Disclosure Banner (if running live model) */}
-      {contract.mode === 'live' && (
-        <div className="compact-live-banner" role="status">
-          <Sparkles size={16} className="live-sparkle-icon" aria-hidden="true" />
-          <span>
-            <strong>Live AI Verification Active:</strong> Grounded against local knowledge base & verified fact-check registries.
-          </span>
-          {resultData?.cached && (
-            <span className="compact-mock-tag" style={{ marginLeft: 'auto', background: 'rgba(217, 119, 6, 0.15)', color: '#D97706', border: '1px solid rgba(217, 119, 6, 0.3)' }}>
-              ⚡ Cached Replay
-            </span>
-          )}
-        </div>
-      )}
+      <div className="compact-live-banner" role="status">
+        <Sparkles size={16} className="live-sparkle-icon" aria-hidden="true" />
+        <span>
+          <strong>{contract.mode === 'live' ? 'Live AI Verification' : 'Demo Evaluation'} Complete:</strong> Dual agents cross-referenced authoritative sources.
+        </span>
+        <button
+          type="button"
+          className="btn-sandbox-link"
+          onClick={goToSandbox}
+          style={{
+            marginLeft: 'auto',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+            color: 'var(--color-forest)',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <LayoutDashboard size={13} />
+          <span>View Live Investigation Sandbox</span>
+        </button>
+      </div>
 
       {/* 2. Verification Summary — First Screen (understand in under 10 seconds) */}
       <VerificationSummary 
@@ -177,6 +194,15 @@ export default function ResultScreen() {
         </button>
 
         <div className="footer-secondary-actions">
+          <button
+            type="button"
+            className="footer-action-link"
+            onClick={goToSandbox}
+          >
+            <LayoutDashboard size={14} />
+            <span>Investigation Sandbox</span>
+          </button>
+
           <button
             type="button"
             className="footer-action-link"
